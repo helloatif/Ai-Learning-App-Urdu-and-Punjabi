@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="firebase_database_url"></string>
+    <string name="gcm_defaultSenderId">109914433070</string>
+    <string name="google_api_key">AIzaSyDyPT9-z_2lmi7snxK2t9eHtLyoCj5AUcE</string>
+    <string name="google_app_id">1:109914433070:android:8b90d6acbc7db6902a61bf</string>
+    <string name="google_crash_reporting_api_key">AIzaSyDyPT9-z_2lmi7snxK2t9eHtLyoCj5AUcE</string>
+    <string name="google_messaging_sender_id">109914433070</string>
+    <string name="google_storage_bucket">ai-learning-app-7fe52.firebasestorage.app</string>
+    <string name="project_id">ai-learning-app-7fe52</string>
+</resources>

@@ -1,0 +1,29 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run on Android Device",
+			"type": "shell",
+			"command": "C:/src/flutter/bin/flutter.bat",
+			"args": [
+				"run",
+				"-d",
+				"0603425097000976",
+				"--target",
+				"lib/main.dart"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}",
+				"shell": {
+					"executable": "C:/Windows/System32/cmd.exe",
+					"args": [
+						"/d",
+						"/c"
+					]
+				}
+			},
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

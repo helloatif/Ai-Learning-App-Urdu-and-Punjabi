@@ -1,0 +1,60 @@
+﻿# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# ML Model - too large for git
+ml_model/trained_model_v2/
+ml_model/venv/
+ml_model/__pycache__/
+
+# Python
+*.pyc
+__pycache__/
+*.py[cod]
+*.class
+.Python
+venv/
+ENV/
+.venv
+
+ml_model/trained_model_v3_2500/
+
+# API Keys (secret)
+lib/config/api_keys.dart
