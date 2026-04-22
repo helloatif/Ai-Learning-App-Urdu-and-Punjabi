@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import '../config/api_keys.dart';
 import '../config/env_config.dart';
 
 /// Service for XLM-RoBERTa based language translation and learning
@@ -12,24 +11,6 @@ class AILanguageService {
       'facebook/mbart-large-50-many-to-many-mmt';
   static const String _xlmRobertaModel = 'xlm-roberta-base';
 
-  static String _resolveApiToken() {
-    if (EnvConfig.huggingFaceToken.trim().isNotEmpty) {
-      return EnvConfig.huggingFaceToken.trim();
-    }
-
-    final primary = ApiKeys.huggingFaceToken.trim();
-    if (primary.isNotEmpty && !primary.startsWith('YOUR_')) {
-      return primary;
-    }
-
-    final secondary = ApiKeys.huggingFaceModelToken.trim();
-    if (secondary.isNotEmpty && !secondary.startsWith('YOUR_')) {
-      return secondary;
-    }
-
-    return '';
-  }
-
   /// Translate text from source language to target language
   /// Supports: urdu (ur), punjabi (pa), english (en)
   static Future<String> translateText({
@@ -38,11 +19,7 @@ class AILanguageService {
     required String targetLanguage,
   }) async {
     try {
-      final token = _resolveApiToken();
-      if (token.isEmpty) {
-        debugPrint('AILanguageService: HuggingFace token missing');
-        return text;
-      }
+      final token = EnvConfig.getHuggingFaceToken();
 
       final url = Uri.parse('$_apiUrl/$_translationModel');
       final response = await http.post(
@@ -76,11 +53,7 @@ class AILanguageService {
   /// Get sentence embeddings for similarity matching
   static Future<List<double>> getEmbeddings(String text) async {
     try {
-      final token = _resolveApiToken();
-      if (token.isEmpty) {
-        debugPrint('AILanguageService: HuggingFace token missing');
-        return [];
-      }
+      final token = EnvConfig.getHuggingFaceToken();
 
       final url = Uri.parse('$_apiUrl/$_xlmRobertaModel');
       final response = await http.post(

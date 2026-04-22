@@ -65,7 +65,7 @@ class ChapterModel {
               english: p.translation,
               pronunciation: p.pronunciation,
               exampleSentence: p.example ?? p.word,
-              exampleEnglish: p.translation,
+              exampleEnglish: p.exampleTranslation ?? p.translation,
             ),
           )
           .toList();
@@ -73,7 +73,7 @@ class ChapterModel {
       lessons.add(
         LessonVocabulary(
           lessonNumber: lessonIdx + 1,
-          title: 'ML Lesson ${lessonIdx + 1}',
+          title: 'Lesson ${lessonIdx + 1}',
           titleEnglish: topics.length > lessonIdx
               ? topics[lessonIdx]
               : 'Lesson ${lessonIdx + 1}',
@@ -100,7 +100,7 @@ class ChapterModel {
 
     return LessonVocabulary(
       lessonNumber: index + 1,
-      title: 'ML Lesson ${index + 1}',
+      title: 'Lesson ${index + 1}',
       titleEnglish: topics.length > index
           ? topics[index]
           : 'Lesson ${index + 1}',
@@ -111,7 +111,7 @@ class ChapterModel {
               english: p.translation,
               pronunciation: p.pronunciation,
               exampleSentence: p.example ?? p.word,
-              exampleEnglish: p.translation,
+              exampleEnglish: p.exampleTranslation ?? p.translation,
             ),
           )
           .toList(),

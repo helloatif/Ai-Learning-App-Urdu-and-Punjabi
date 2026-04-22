@@ -478,7 +478,7 @@ class QuizGeneratorService {
 
     return LessonVocabulary(
       lessonNumber: lessonIndex + 1,
-      title: 'ML Lesson ${lessonIndex + 1}',
+      title: 'Lesson ${lessonIndex + 1}',
       titleEnglish: 'Lesson ${lessonIndex + 1}',
       words: predictions
           .map(
@@ -487,7 +487,7 @@ class QuizGeneratorService {
               english: p.translation,
               pronunciation: p.pronunciation,
               exampleSentence: p.example ?? p.word,
-              exampleEnglish: p.translation,
+              exampleEnglish: p.exampleTranslation ?? p.translation,
             ),
           )
           .toList(),
@@ -877,7 +877,7 @@ class QuizGeneratorService {
               english: p.translation,
               pronunciation: p.pronunciation,
               exampleSentence: p.example ?? p.word,
-              exampleEnglish: p.translation,
+              exampleEnglish: p.exampleTranslation ?? p.translation,
             );
           }
         }

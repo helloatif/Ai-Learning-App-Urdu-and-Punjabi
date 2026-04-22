@@ -38,7 +38,7 @@ class WordRecommendationService {
               english: p.translation,
               pronunciation: p.pronunciation,
               exampleSentence: p.example ?? p.word,
-              exampleEnglish: p.translation,
+              exampleEnglish: p.exampleTranslation ?? p.translation,
             ),
           );
         }

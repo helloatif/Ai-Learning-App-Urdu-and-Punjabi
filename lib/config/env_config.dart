@@ -5,6 +5,8 @@
 ///
 /// For production APK:
 /// flutter build apk --dart-define=HUGGINGFACE_TOKEN=your_token_here
+import 'api_keys.dart';
+
 class EnvConfig {
   /// HuggingFace API token from environment variable
   /// Set via: flutter build apk --dart-define=HUGGINGFACE_TOKEN=xxx
@@ -27,12 +29,26 @@ class EnvConfig {
 
   /// Get token or throw if not configured
   static String getHuggingFaceToken() {
+    if (huggingFaceToken.trim().isNotEmpty) {
+      return huggingFaceToken.trim();
+    }
+
+    final apiKeyToken = ApiKeys.huggingFaceToken.trim();
+    if (apiKeyToken.isNotEmpty && !apiKeyToken.startsWith('YOUR_')) {
+      return apiKeyToken;
+    }
+
+    final apiKeyModelToken = ApiKeys.huggingFaceModelToken.trim();
+    if (apiKeyModelToken.isNotEmpty && !apiKeyModelToken.startsWith('YOUR_')) {
+      return apiKeyModelToken;
+    }
+
     if (huggingFaceToken.isEmpty) {
       throw Exception(
         'HuggingFace API token not configured. '
         'Run: flutter run --dart-define=HUGGINGFACE_TOKEN=your_token_here',
       );
     }
-    return huggingFaceToken;
+    return huggingFaceToken.trim();
   }
 }

@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import '../config/api_keys.dart';
 import '../config/env_config.dart';
 import 'ai_language_service.dart';
 import 'translation_service.dart';
@@ -877,23 +876,7 @@ class FolkStoryService {
   }
 
   static String _resolveHuggingFaceToken() {
-    if (EnvConfig.huggingFaceToken.trim().isNotEmpty) {
-      return EnvConfig.huggingFaceToken.trim();
-    }
-
-    final primaryApiKey = ApiKeys.huggingFaceToken.trim();
-    if (primaryApiKey.isNotEmpty && !primaryApiKey.startsWith('YOUR_')) {
-      return primaryApiKey;
-    }
-
-    final modelApiKey = ApiKeys.huggingFaceModelToken.trim();
-    if (modelApiKey.isNotEmpty && !modelApiKey.startsWith('YOUR_')) {
-      return modelApiKey;
-    }
-
-    throw Exception(
-      'HuggingFace API token not configured. Set HUGGINGFACE_TOKEN dart-define or api_keys.dart token.',
-    );
+    return EnvConfig.getHuggingFaceToken();
   }
 
   static Future<String> _translateStoryToEnglish(String urduStory) async {

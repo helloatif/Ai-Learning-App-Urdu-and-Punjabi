@@ -83,7 +83,12 @@ class _TranslationPracticeScreenState extends State<TranslationPracticeScreen> {
 
   Future<void> _speakOutput() async {
     if (_translatedText.isEmpty) return;
-    await VoiceService.speak(_translatedText, _targetLanguage);
+    final ok = await VoiceService.speak(_translatedText, _targetLanguage);
+    if (!ok && mounted && VoiceService.lastTtsError.isNotEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(VoiceService.lastTtsError)));
+    }
   }
 
   @override

@@ -180,6 +180,11 @@ class MLVocabularyService {
             example: (item['example'] as String?)?.trim().isNotEmpty == true
                 ? item['example'] as String
                 : item['text'] as String? ?? '',
+            exampleTranslation:
+              (item['example_translation'] as String?)?.trim().isNotEmpty ==
+                true
+              ? item['example_translation'] as String
+              : item['translation'] as String? ?? '',
           ),
         )
         .toList();
@@ -784,6 +789,7 @@ class VocabularyPrediction {
   final String pronunciation;
   final double confidence;
   final String? example;
+  final String? exampleTranslation;
 
   VocabularyPrediction({
     required this.word,
@@ -791,6 +797,7 @@ class VocabularyPrediction {
     required this.pronunciation,
     required this.confidence,
     this.example,
+    this.exampleTranslation,
   });
 }
 

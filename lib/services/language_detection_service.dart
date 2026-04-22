@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../config/api_keys.dart';
+import '../config/env_config.dart';
 
 /// Service for detecting language (Urdu vs Punjabi) using trained XLM-RoBERTa model
 class LanguageDetectionService {
@@ -9,7 +9,6 @@ class LanguageDetectionService {
   static const String _huggingFaceModel = 'RAFAY-484/Urdu-Punjabi-V2';
   static const String _apiEndpoint =
       'https://api-inference.huggingface.co/models/$_huggingFaceModel';
-  static const String _hfToken = ApiKeys.huggingFaceModelToken;
 
   /// Detect if text is Urdu (0) or Punjabi (1)
   Future<LanguageDetectionResult> detectLanguage(String text) async {
@@ -33,7 +32,7 @@ class LanguageDetectionService {
           Uri.parse(_apiEndpoint),
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer $_hfToken',
+            'Authorization': 'Bearer ${EnvConfig.getHuggingFaceToken()}',
           },
           body: jsonEncode({'inputs': text}),
         )

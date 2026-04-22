@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'dart:io';
 import '../../themes/app_theme.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/gamification_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/learning_provider.dart';
+import '../grammar/grammar_checker_screen.dart';
+import '../learning/translation_practice_screen.dart';
+import '../voice/voice_assistant_screen.dart';
 import '../../services/firebase_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -18,88 +18,8 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final ImagePicker _picker = ImagePicker();
-  bool _isUploadingImage = false;
-
-  Future<void> _pickAndUploadImage() async {
-    try {
-      final XFile? image = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 300,
-        maxHeight: 300,
-        imageQuality: 50, // ~10-40 KB for most photos
-      );
-
-      if (image == null) return;
-
-      // --- Size guard: reject files over 1 MB ---
-      final bytes = await image.readAsBytes();
-      const int maxBytes = 1 * 1024 * 1024; // 1 MB
-      if (bytes.length > maxBytes) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Image too large (${(bytes.length / 1024).round()} KB). '
-                'Maximum allowed size is 1 MB.',
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
-      setState(() => _isUploadingImage = true);
-
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final userId = userProvider.currentUser!.id;
-
-      // Show local preview immediately — no waiting for upload
-      final localPath = image.path;
-      userProvider.setLocalProfileImage(localPath);
-
-      // Upload bytes (faster than putFile — no extra disk read)
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('profile_pictures')
-          .child('$userId.jpg');
-
-      await storageRef.putData(
-        bytes,
-        SettableMetadata(
-          contentType: 'image/jpeg',
-          // Cache for 30 days on CDN — makes subsequent loads instant
-          cacheControl: 'public, max-age=2592000',
-        ),
-      );
-      final downloadUrl = await storageRef.getDownloadURL();
-
-      // Persist the remote URL (also caches in SharedPreferences)
-      await userProvider.updateProfileImage(downloadUrl);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile picture updated!'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to upload image: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      setState(() => _isUploadingImage = false);
-    }
-  }
+  static const String _maleAvatarPath = 'assets/images/9440461.jpg';
+  static const String _femaleAvatarPath = 'assets/images/10491839.jpg';
 
   @override
   void initState() {
@@ -174,71 +94,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       child: Column(
                         children: [
-                          // Avatar with Upload Button
-                          Stack(
-                            children: [
-                              Container(
-                                width: 120,
-                                height: 120,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: AppTheme.white,
-                                    width: 4,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.2,
-                                      ),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 5),
-                                    ),
-                                  ],
-                                ),
-                                child: ClipOval(
-                                  child: _buildAvatar(userProvider),
-                                ),
+                          Container(
+                            width: 120,
+                            height: 120,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppTheme.white,
+                                width: 4,
                               ),
-                              // Edit Button
-                              Positioned(
-                                bottom: 0,
-                                right: 0,
-                                child: GestureDetector(
-                                  onTap: _isUploadingImage
-                                      ? null
-                                      : _pickAndUploadImage,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.2),
-                                          blurRadius: 5,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: _isUploadingImage
-                                        ? const SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: AppTheme.primaryGreen,
-                                            ),
-                                          )
-                                        : const Icon(
-                                            Icons.camera_alt,
-                                            color: AppTheme.primaryGreen,
-                                            size: 20,
-                                          ),
-                                  ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 5),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                            child: ClipOval(child: _buildAvatar(userProvider)),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -398,6 +271,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 8),
                           _buildLanguageSwitcher(context, userProvider),
                           const SizedBox(height: 8),
+                          _buildAvatarSelectorInSettings(userProvider),
+                          const SizedBox(height: 8),
+                          _buildAitoolsCard(context),
+                          const SizedBox(height: 8),
                         ],
                       ),
                     ),
@@ -480,61 +357,225 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Builds the avatar: local file (instant) → network URL → initials fallback.
+  /// Builds the selected avatar shown in the profile circle.
   Widget _buildAvatar(UserProvider userProvider) {
-    final initials = (userProvider.currentUser?.name.isNotEmpty == true)
-        ? userProvider.currentUser!.name[0].toUpperCase()
-        : '?';
-    final initialsWidget = Container(
-      color: AppTheme.accentGreen,
-      child: Center(
-        child: Text(
-          initials,
-          style: const TextStyle(
-            fontSize: 50,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.white,
-          ),
+    final selected = userProvider.selectedAvatar;
+
+    if (selected == null) {
+      return Container(
+        color: AppTheme.accentGreen.withValues(alpha: 0.25),
+        child: const Icon(Icons.face, size: 64, color: AppTheme.primaryGreen),
+      );
+    }
+
+    return _buildAvatarImage(
+      selected == 'female' ? _femaleAvatarPath : _maleAvatarPath,
+      fallbackIcon: selected == 'female' ? Icons.face_3 : Icons.face_6,
+      width: double.infinity,
+      height: double.infinity,
+    );
+  }
+
+  Widget _buildAvatarSelectorInSettings(UserProvider userProvider) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Select Avatar',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildAvatarChoice(
+                    userProvider: userProvider,
+                    value: 'male',
+                    label: 'Male',
+                    assetPath: _maleAvatarPath,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _buildAvatarChoice(
+                    userProvider: userProvider,
+                    value: 'female',
+                    label: 'Female',
+                    assetPath: _femaleAvatarPath,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
+  }
 
-    // 1) Show local file immediately while upload is in progress
-    final localPath = userProvider.localProfileImagePath;
-    if (localPath != null) {
-      return Image.file(
-        File(localPath),
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => initialsWidget,
-      );
-    }
+  Widget _buildAitoolsCard(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'AI Tools',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            _buildToolButton(
+              context,
+              label: 'Grammar Checker',
+              icon: Icons.rule,
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const GrammarCheckerScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            _buildToolButton(
+              context,
+              label: 'Translation Practice',
+              icon: Icons.translate,
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const TranslationPracticeScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 8),
+            _buildToolButton(
+              context,
+              label: 'Voice Assistant',
+              icon: Icons.mic,
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const VoiceAssistantScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-    // 2) Show remote URL (cached by network image cache / CDN)
-    final remoteUrl = userProvider.currentUser?.profileImageUrl;
-    if (remoteUrl != null && remoteUrl.isNotEmpty) {
-      return Image.network(
-        remoteUrl,
-        fit: BoxFit.cover,
-        cacheWidth: 300,
-        cacheHeight: 300,
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
-          return Container(
-            color: AppTheme.accentGreen,
-            child: const Center(
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 2,
+  Widget _buildToolButton(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(label),
+      ),
+    );
+  }
+
+  Widget _buildAvatarImage(
+    String path, {
+    required IconData fallbackIcon,
+    required double width,
+    required double height,
+  }) {
+    return Image.asset(
+      path,
+      width: width,
+      height: height,
+      fit: BoxFit.cover,
+      alignment: Alignment.topCenter,
+      errorBuilder: (_, __, ___) => Container(
+        width: width,
+        height: height,
+        color: AppTheme.accentGreen.withValues(alpha: 0.25),
+        child: Icon(fallbackIcon, size: 46, color: AppTheme.primaryGreen),
+      ),
+    );
+  }
+
+  Widget _buildAvatarChoice({
+    required UserProvider userProvider,
+    required String value,
+    required String label,
+    required String assetPath,
+  }) {
+    final bool isSelected = userProvider.selectedAvatar == value;
+
+    return GestureDetector(
+      onTap: () => userProvider.setSelectedAvatar(value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? AppTheme.primaryGreen
+                : Colors.grey.withValues(alpha: 0.35),
+            width: isSelected ? 2.5 : 1,
+          ),
+          boxShadow: [
+            if (isSelected)
+              BoxShadow(
+                color: AppTheme.primaryGreen.withValues(alpha: 0.20),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected
+                      ? AppTheme.primaryGreen
+                      : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: ClipOval(
+                child: _buildAvatarImage(
+                  assetPath,
+                  fallbackIcon: value == 'female' ? Icons.face_3 : Icons.face_6,
+                  width: 60,
+                  height: 60,
+                ),
               ),
             ),
-          );
-        },
-        errorBuilder: (_, __, ___) => initialsWidget,
-      );
-    }
-
-    // 3) No image — show initials
-    return initialsWidget;
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: isSelected ? AppTheme.primaryGreen : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildStatCard(

@@ -16,6 +16,9 @@ class LearnScreen extends StatefulWidget {
 
 class _LearnScreenState extends State<LearnScreen>
     with TickerProviderStateMixin {
+  static const String _maleAvatarPath = 'assets/images/9440461.jpg';
+  static const String _femaleAvatarPath = 'assets/images/10491839.jpg';
+
   late AnimationController _headerController;
   late Animation<double> _headerAnimation;
 
@@ -86,7 +89,7 @@ class _LearnScreenState extends State<LearnScreen>
             slivers: [
               // Animated Header
               SliverAppBar(
-                expandedHeight: 200,
+                expandedHeight: 144,
                 floating: false,
                 pinned: true,
                 backgroundColor: AppTheme.primaryGreen,
@@ -107,9 +110,12 @@ class _LearnScreenState extends State<LearnScreen>
                           ),
                         ),
                         child: SafeArea(
+                          top: false,
+                          bottom: false,
                           child: Padding(
-                            padding: const EdgeInsets.all(24.0),
+                            padding: const EdgeInsets.all(16.0),
                             child: Column(
+                              mainAxisSize: MainAxisSize.min,
                               mainAxisAlignment: MainAxisAlignment.end,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -128,18 +134,15 @@ class _LearnScreenState extends State<LearnScreen>
                                     child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Icon(
-                                          Icons.language,
-                                          size: 16,
-                                          color: AppTheme.white,
-                                        ),
-                                        const SizedBox(width: 4),
+                                        const Icon(Icons.language, size: 14, color: AppTheme.white),
+                                        const SizedBox(width: 3),
                                         Text(
                                           selectedLanguage == 'urdu'
                                               ? '🇵🇰 Learning Urdu'
                                               : '🇵🇰 Learning Punjabi',
                                           style: const TextStyle(
                                             color: AppTheme.white,
+                                            fontSize: 12,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -147,25 +150,40 @@ class _LearnScreenState extends State<LearnScreen>
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 6),
 
-                                // Title
-                                SlideTransition(
-                                  position: Tween<Offset>(
-                                    begin: const Offset(-0.5, 0),
-                                    end: Offset.zero,
-                                  ).animate(_headerAnimation),
-                                  child: const Text(
-                                    'Your Learning Path',
-                                    style: TextStyle(
-                                      fontSize: 28,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.white,
+                                // Avatar + Title
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    _buildHeaderAvatar(user),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          SlideTransition(
+                                            position: Tween<Offset>(
+                                              begin: const Offset(-0.5, 0),
+                                              end: Offset.zero,
+                                            ).animate(_headerAnimation),
+                                            child: const Text(
+                                              'Your Learning Path',
+                                              style: TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppTheme.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ),
 
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 4),
 
                                 // Progress Bar
                                 FadeTransition(
@@ -184,7 +202,7 @@ class _LearnScreenState extends State<LearnScreen>
                                               color: AppTheme.white.withOpacity(
                                                 0.9,
                                               ),
-                                              fontSize: 14,
+                                              fontSize: 12,
                                             ),
                                           ),
                                           Text(
@@ -193,12 +211,12 @@ class _LearnScreenState extends State<LearnScreen>
                                               color: AppTheme.white.withOpacity(
                                                 0.9,
                                               ),
-                                              fontSize: 14,
+                                              fontSize: 12,
                                             ),
                                           ),
                                         ],
                                       ),
-                                      const SizedBox(height: 8),
+                                      const SizedBox(height: 6),
                                       ClipRRect(
                                         borderRadius: BorderRadius.circular(10),
                                         child: LinearProgressIndicator(
@@ -262,12 +280,51 @@ class _LearnScreenState extends State<LearnScreen>
                 ),
               ),
 
-              // Bottom padding
-              const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildHeaderAvatar(UserProvider user) {
+    final selectedAvatar = user.selectedAvatar;
+
+    if (selectedAvatar == null) {
+      return Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: AppTheme.white, width: 2),
+          color: AppTheme.white.withOpacity(0.18),
+        ),
+        child: const Icon(Icons.face, color: AppTheme.white, size: 24),
+      );
+    }
+
+    final avatarPath = selectedAvatar == 'female'
+        ? _femaleAvatarPath
+        : _maleAvatarPath;
+
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: AppTheme.white, width: 2),
+      ),
+      child: ClipOval(
+        child: Image.asset(
+          avatarPath,
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+          errorBuilder: (_, __, ___) => Container(
+            color: AppTheme.white.withOpacity(0.18),
+            child: const Icon(Icons.face, color: AppTheme.white, size: 28),
+          ),
+        ),
+      ),
     );
   }
 

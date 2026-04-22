@@ -363,7 +363,12 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
 
   /// Speak the word for pronunciation help
   Future<void> _speakWord(String word) async {
-    await VoiceService.speak(word, widget.chapter.language);
+    final ok = await VoiceService.speak(word, widget.chapter.language);
+    if (!ok && mounted && VoiceService.lastTtsError.isNotEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(VoiceService.lastTtsError)));
+    }
   }
 
   @override
@@ -391,7 +396,7 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
                 ElevatedButton.icon(
                   onPressed: _generateQuestions,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Retry ML Load'),
+                  label: const Text('Retry Load'),
                 ),
               ],
             ),

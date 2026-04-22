@@ -112,7 +112,12 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> {
         _assistantResponse = response;
         _isSpeaking = false;
       });
-      await VoiceService.speak(response, language);
+      final ok = await VoiceService.speak(response, language);
+      if (!ok && mounted && VoiceService.lastTtsError.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(VoiceService.lastTtsError)),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -127,7 +132,12 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> {
     setState(() {
       _isSpeaking = true;
     });
-    await VoiceService.speak(_assistantResponse, language);
+    final ok = await VoiceService.speak(_assistantResponse, language);
+    if (!ok && mounted && VoiceService.lastTtsError.isNotEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(VoiceService.lastTtsError)));
+    }
     if (!mounted) return;
     setState(() {
       _isSpeaking = false;

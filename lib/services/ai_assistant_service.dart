@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
-import '../config/api_keys.dart';
+import '../config/env_config.dart';
 import 'translation_service.dart';
 import 'word_recommendation_service.dart';
 import 'ml_vocabulary_service.dart';
@@ -11,7 +11,7 @@ import 'ml_vocabulary_service.dart';
 class AIAssistantService {
   static const String _apiUrl =
       'https://api-inference.huggingface.co/models/facebook/blenderbot-400M-distill';
-  static const String _apiToken = ApiKeys.huggingFaceToken;
+  static String get _apiToken => EnvConfig.getHuggingFaceToken();
 
   static final List<Map<String, String>> _conversationHistory = [];
   static final TranslationService _translationService = TranslationService();

@@ -9,6 +9,7 @@ import '../../services/ml_vocabulary_service.dart';
 import '../../data/vocabulary_data.dart';
 import '../../providers/learning_provider.dart';
 import '../../providers/gamification_provider.dart';
+import '../../providers/user_provider.dart';
 
 /// Clean lesson screen - Teaching only with TTS (no quizzes, no user input)
 /// User learns 25 words/sentences per lesson
@@ -84,7 +85,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                 english: p.translation,
                 pronunciation: p.pronunciation,
                 exampleSentence: p.example ?? p.word,
-                exampleEnglish: p.translation,
+                exampleEnglish: p.exampleTranslation ?? p.translation,
               ),
             )
             .toList();
@@ -106,7 +107,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
       });
       return;
     } catch (e) {
-      debugPrint('ML lesson content load failed: $e');
+      debugPrint('Lesson content load failed: $e');
       if (!mounted) return;
       setState(() {
         _lessonWords = [];
@@ -126,7 +127,15 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
     setState(() => _isSpeaking = true);
     HapticFeedback.lightImpact();
 
-    await VoiceService.speak(_currentWord.urdu, widget.chapter.language);
+    final ok = await VoiceService.speak(
+      _currentWord.urdu,
+      widget.chapter.language,
+    );
+    if (!ok && mounted && VoiceService.lastTtsError.isNotEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(VoiceService.lastTtsError)));
+    }
 
     if (mounted) {
       setState(() => _isSpeaking = false);
@@ -138,10 +147,15 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
     setState(() => _isSpeaking = true);
     HapticFeedback.lightImpact();
 
-    await VoiceService.speak(
+    final ok = await VoiceService.speak(
       _currentWord.exampleSentence!,
       widget.chapter.language,
     );
+    if (!ok && mounted && VoiceService.lastTtsError.isNotEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(VoiceService.lastTtsError)));
+    }
 
     if (mounted) {
       setState(() => _isSpeaking = false);
@@ -340,7 +354,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                     _loadLessonWordsFromMl();
                   },
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Retry ML Load'),
+                  label: const Text('Retry Load'),
                 ),
               ],
             ),
@@ -398,6 +412,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
 
   Widget _buildTopBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final userProvider = Provider.of<UserProvider>(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
       child: Row(
@@ -433,19 +448,49 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                         : Colors.grey.shade600,
                   ),
                 ),
-                Text(
-                  'Content source: XLM-RoBERTa',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isDark
-                        ? AppTheme.textLight.withOpacity(0.62)
-                        : Colors.grey.shade500,
-                  ),
-                ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          _buildTopBarAvatar(userProvider),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTopBarAvatar(UserProvider userProvider) {
+    final selectedAvatar = userProvider.selectedAvatar;
+
+    if (selectedAvatar == null) {
+      return Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppTheme.primaryGreen.withOpacity(0.12),
+        ),
+        child: const Icon(Icons.face, size: 22, color: AppTheme.primaryGreen),
+      );
+    }
+
+    final avatarPath = selectedAvatar == 'female'
+        ? 'assets/images/10491839.jpg'
+        : 'assets/images/9440461.jpg';
+
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: const BoxDecoration(shape: BoxShape.circle),
+      child: ClipOval(
+        child: Image.asset(
+          avatarPath,
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+          errorBuilder: (_, __, ___) => Container(
+            color: AppTheme.primaryGreen.withOpacity(0.12),
+            child: const Icon(Icons.face, size: 22, color: AppTheme.primaryGreen),
+          ),
+        ),
       ),
     );
   }

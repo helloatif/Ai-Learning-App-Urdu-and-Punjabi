@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,7 +7,6 @@ class User {
   final String id;
   final String email;
   final String name;
-  final String? profileImageUrl;
   final String selectedLanguage; // 'urdu', 'punjabi'
   final int points;
   final int level;
@@ -19,7 +17,6 @@ class User {
     required this.id,
     required this.email,
     required this.name,
-    this.profileImageUrl,
     this.selectedLanguage = 'urdu',
     this.points = 0,
     this.level = 1,
@@ -31,22 +28,46 @@ class User {
 class UserProvider extends ChangeNotifier {
   User? _currentUser;
   bool _isAuthenticated = false;
-  String? _localProfileImagePath; // local file path for instant preview
+  String? _selectedAvatar;
 
   User? get currentUser => _currentUser;
   User? get user => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
-  String? get localProfileImagePath => _localProfileImagePath;
+  String? get selectedAvatar => _selectedAvatar;
 
-  /// Show a local file immediately as the avatar while upload is in progress.
-  void setLocalProfileImage(String path) {
-    _localProfileImagePath = path;
+  String _avatarPrefsKey(String userId) => 'selected_avatar_$userId';
+
+  Future<void> loadSelectedAvatar() async {
+    final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_avatarPrefsKey(firebaseUser.uid));
+    final normalized = saved == 'male' || saved == 'female' ? saved : null;
+
+    if (_selectedAvatar == normalized) return;
+
+    _selectedAvatar = normalized;
     notifyListeners();
   }
 
-  void clearLocalProfileImage() {
-    _localProfileImagePath = null;
-    // no notify needed — called after remote URL is set
+  Future<void> setSelectedAvatar(String? value) async {
+    final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null) return;
+
+    final normalized = value == 'male' || value == 'female' ? value : null;
+    final prefs = await SharedPreferences.getInstance();
+
+    if (normalized == null) {
+      await prefs.remove(_avatarPrefsKey(firebaseUser.uid));
+    } else {
+      await prefs.setString(_avatarPrefsKey(firebaseUser.uid), normalized);
+    }
+
+    if (_selectedAvatar == normalized) return;
+
+    _selectedAvatar = normalized;
+    notifyListeners();
   }
 
   void setUser(User user) {
@@ -59,26 +80,6 @@ class UserProvider extends ChangeNotifier {
     try {
       final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
       if (firebaseUser != null) {
-        // Show cached profile image immediately (before Firestore round-trip)
-        final prefs = await SharedPreferences.getInstance();
-        final cachedUrl = prefs.getString(
-          'profileImageUrl_${firebaseUser.uid}',
-        );
-        if (cachedUrl != null && _currentUser == null) {
-          _currentUser = User(
-            id: firebaseUser.uid,
-            email: firebaseUser.email ?? '',
-            name: firebaseUser.email?.split('@')[0] ?? 'User',
-            profileImageUrl: cachedUrl,
-            selectedLanguage: 'urdu',
-            points: 0,
-            level: 1,
-            unlockedBadges: [],
-            createdAt: DateTime.now(),
-          );
-          notifyListeners();
-        }
-
         // Get user data from Firestore
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
@@ -88,21 +89,11 @@ class UserProvider extends ChangeNotifier {
         if (userDoc.exists) {
           final data = userDoc.data()!;
           final emailPrefix = firebaseUser.email?.split('@')[0] ?? 'User';
-          final remoteUrl = data['profileImageUrl'] as String?;
-
-          // Keep cache in sync
-          if (remoteUrl != null) {
-            await prefs.setString(
-              'profileImageUrl_${firebaseUser.uid}',
-              remoteUrl,
-            );
-          }
 
           _currentUser = User(
             id: firebaseUser.uid,
             email: firebaseUser.email ?? '',
             name: data['displayName'] ?? emailPrefix,
-            profileImageUrl: remoteUrl ?? cachedUrl,
             selectedLanguage: data['selectedLanguage'] ?? 'urdu',
             points: (data['totalXP'] ?? data['totalPoints'] ?? 0) as int,
             level:
@@ -114,6 +105,8 @@ class UserProvider extends ChangeNotifier {
           );
           _isAuthenticated = true;
           notifyListeners();
+
+          await loadSelectedAvatar();
         } else {
           // User doc doesn't exist, create basic user object
           final fallbackName = firebaseUser.email?.split('@')[0] ?? 'User';
@@ -135,7 +128,6 @@ class UserProvider extends ChangeNotifier {
             id: firebaseUser.uid,
             email: firebaseUser.email ?? '',
             name: fallbackName,
-            profileImageUrl: null,
             selectedLanguage: 'urdu',
             points: 0,
             level: 1,
@@ -144,6 +136,8 @@ class UserProvider extends ChangeNotifier {
           );
           _isAuthenticated = true;
           notifyListeners();
+
+          await loadSelectedAvatar();
         }
       }
     } catch (e) {
@@ -164,7 +158,6 @@ class UserProvider extends ChangeNotifier {
         id: _currentUser!.id,
         email: _currentUser!.email,
         name: _currentUser!.name,
-        profileImageUrl: _currentUser!.profileImageUrl,
         selectedLanguage: language,
         points: _currentUser!.points,
         level: _currentUser!.level,
@@ -197,39 +190,6 @@ class UserProvider extends ChangeNotifier {
     }
 
     notifyListeners();
-  }
-
-  Future<void> updateProfileImage(String imageUrl) async {
-    if (_currentUser != null) {
-      // Cache URL locally for instant display on next open
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('profileImageUrl_${_currentUser!.id}', imageUrl);
-
-      _currentUser = User(
-        id: _currentUser!.id,
-        email: _currentUser!.email,
-        name: _currentUser!.name,
-        profileImageUrl: imageUrl,
-        selectedLanguage: _currentUser!.selectedLanguage,
-        points: _currentUser!.points,
-        level: _currentUser!.level,
-        unlockedBadges: _currentUser!.unlockedBadges,
-        createdAt: _currentUser!.createdAt,
-      );
-
-      notifyListeners(); // Update UI immediately with new URL
-
-      clearLocalProfileImage(); // remote URL is set — drop the local file path
-
-      // Persist to Firestore in the background
-        FirebaseFirestore.instance
-          .collection('users')
-          .doc(_currentUser!.id)
-          .update({'profileImageUrl': imageUrl})
-          .catchError(
-            (e) => debugPrint('⚠ Firestore profile update error: $e'),
-          );
-    }
   }
 
   Future<void> updateLanguage(String language) async {

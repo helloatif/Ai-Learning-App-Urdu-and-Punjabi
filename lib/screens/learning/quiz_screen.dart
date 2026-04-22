@@ -597,7 +597,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                 ElevatedButton.icon(
                   onPressed: _loadQuestions,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Retry ML Load'),
+                  label: const Text('Retry Load'),
                 ),
               ],
             ),

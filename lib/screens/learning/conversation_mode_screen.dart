@@ -71,7 +71,12 @@ class _ConversationModeScreenState extends State<ConversationModeScreen> {
       });
       _scrollToBottom();
 
-      await VoiceService.speak(response, detected.language);
+      final ok = await VoiceService.speak(response, detected.language);
+      if (!ok && mounted && VoiceService.lastTtsError.isNotEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(VoiceService.lastTtsError)));
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {

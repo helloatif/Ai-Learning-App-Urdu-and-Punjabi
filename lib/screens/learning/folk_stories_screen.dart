@@ -89,7 +89,12 @@ class _FolkStoriesScreenState extends State<FolkStoriesScreen> {
 
     try {
       final cleanForTts = FolkStoryService.cleanTextForTts(_storyText);
-      await VoiceService.speak(cleanForTts, _storyLanguage);
+      final ok = await VoiceService.speak(cleanForTts, _storyLanguage);
+      if (!ok && mounted && VoiceService.lastTtsError.isNotEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(VoiceService.lastTtsError)));
+      }
     } finally {
       if (mounted) {
         setState(() {

@@ -7,6 +7,7 @@ import '../../services/ml_vocabulary_service.dart';
 import '../../data/vocabulary_data.dart';
 import '../../providers/learning_provider.dart';
 import '../../services/quiz_generator_service.dart';
+import '../../providers/user_provider.dart';
 import 'teaching_lesson_screen.dart';
 import 'chapter_quiz_screen.dart';
 
@@ -65,7 +66,7 @@ class _ChapterLessonsScreenState extends State<ChapterLessonsScreen>
                 english: p.translation,
                 pronunciation: p.pronunciation,
                 exampleSentence: p.example ?? p.word,
-                exampleEnglish: p.translation,
+                exampleEnglish: p.exampleTranslation ?? p.translation,
               ),
             )
             .toList();
@@ -73,7 +74,7 @@ class _ChapterLessonsScreenState extends State<ChapterLessonsScreen>
         generatedLessons.add(
           LessonVocabulary(
             lessonNumber: lessonIdx + 1,
-            title: 'ML Lesson ${lessonIdx + 1}',
+            title: 'Lesson ${lessonIdx + 1}',
             titleEnglish: widget.chapter.topics.length > lessonIdx
                 ? widget.chapter.topics[lessonIdx]
                 : 'Lesson ${lessonIdx + 1}',
@@ -139,7 +140,7 @@ class _ChapterLessonsScreenState extends State<ChapterLessonsScreen>
                 ElevatedButton.icon(
                   onPressed: _loadLessonsFromMl,
                   icon: const Icon(Icons.refresh),
-                  label: const Text('Retry ML Load'),
+                  label: const Text('Retry Load'),
                 ),
               ],
             ),
@@ -191,6 +192,7 @@ class _ChapterLessonsScreenState extends State<ChapterLessonsScreen>
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             // Circular progress ring
                             SizedBox(
@@ -208,7 +210,8 @@ class _ChapterLessonsScreenState extends State<ChapterLessonsScreen>
                                       backgroundColor: Colors.white.withOpacity(
                                         0.2,
                                       ),
-                                      valueColor: const AlwaysStoppedAnimation(
+                                      valueColor:
+                                          const AlwaysStoppedAnimation(
                                         Colors.white,
                                       ),
                                     ),
@@ -253,6 +256,8 @@ class _ChapterLessonsScreenState extends State<ChapterLessonsScreen>
                                 ],
                               ),
                             ),
+                            const SizedBox(width: 10),
+                            _buildHeaderAvatar(),
                           ],
                         ),
                       ],
@@ -481,6 +486,46 @@ class _ChapterLessonsScreenState extends State<ChapterLessonsScreen>
 
           const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderAvatar() {
+    final selectedAvatar = context.read<UserProvider>().selectedAvatar;
+
+    if (selectedAvatar == null) {
+      return Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withOpacity(0.18),
+        ),
+        child: const Icon(Icons.face, size: 22, color: Colors.white),
+      );
+    }
+
+    final avatarPath = selectedAvatar == 'female'
+        ? 'assets/images/10491839.jpg'
+        : 'assets/images/9440461.jpg';
+
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.5),
+      ),
+      child: ClipOval(
+        child: Image.asset(
+          avatarPath,
+          fit: BoxFit.cover,
+          alignment: Alignment.topCenter,
+          errorBuilder: (_, __, ___) => Container(
+            color: Colors.white.withOpacity(0.18),
+            child: const Icon(Icons.face, size: 22, color: Colors.white),
+          ),
+        ),
       ),
     );
   }

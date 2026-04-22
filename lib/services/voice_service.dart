@@ -8,46 +8,84 @@ class VoiceService {
   static final FlutterTts _flutterTts = FlutterTts();
   static final stt.SpeechToText _speech = stt.SpeechToText();
   static bool _isInitialized = false;
+  static bool _isTtsReady = false;
+  static bool _isSttReady = false;
+  static String _lastTtsError = '';
   static final Map<String, String> _ttsLocaleCache = {};
   static final Map<String, Map<String, String>> _ttsVoiceCache = {};
+
+  static String get lastTtsError => _lastTtsError;
 
   /// Initialize TTS and STT
   static Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
+      debugPrint('[TTS] initialize() start');
+      await _ensureTtsReady();
+
       // Initialize TTS
       await _flutterTts.setLanguage('ur-PK');
       await _flutterTts.setSpeechRate(0.5);
       await _flutterTts.setVolume(1.0);
       await _flutterTts.setPitch(1.0);
       await _flutterTts.awaitSpeakCompletion(true);
+      _isTtsReady = true;
+      debugPrint('[TTS] initialize() TTS ready');
 
       // Initialize STT
-      _isInitialized = await _speech.initialize(
+      _isSttReady = await _speech.initialize(
         onError: (error) => debugPrint('STT Error: $error'),
         onStatus: (status) => debugPrint('STT Status: $status'),
       );
+      _isInitialized = true;
 
-      debugPrint('Voice Service initialized: $_isInitialized');
+      debugPrint(
+        'Voice Service initialized: initialized=$_isInitialized tts=$_isTtsReady stt=$_isSttReady',
+      );
     } catch (e) {
       debugPrint('Voice Service initialization error: $e');
+      _isInitialized = false;
     }
   }
 
   /// Speak text in specified language
-  static Future<void> speak(String text, String language) async {
+  static Future<bool> speak(String text, String language) async {
+    _lastTtsError = '';
+    if (text.trim().isEmpty) {
+      debugPrint('[TTS] speak() skipped: empty text');
+      return false;
+    }
+
     try {
+      final preview = text.length > 80 ? '${text.substring(0, 80)}...' : text;
+      debugPrint('[TTS] speak() called language=$language text="$preview"');
+
       // Auto-initialize if not already done
       if (!_isInitialized) {
+        debugPrint('[TTS] not initialized; calling initialize()');
         await initialize();
       }
-      
-      await _configureTtsForLanguage(language);
+
+      if (!_isTtsReady) {
+        debugPrint('[TTS] TTS not marked ready; probing engine again');
+        await _ensureTtsReady();
+      }
+
+      debugPrint('[TTS] configuring language and voice');
+      await _configureTtsForLanguage(language, text);
       await _flutterTts.setSpeechRate(0.4); // Slower for learning
-      await _flutterTts.speak(text);
-    } catch (e) {
-      debugPrint('TTS Error: $e');
+      debugPrint('[TTS] speech rate set to 0.4');
+
+      final result = await _flutterTts.speak(text);
+      debugPrint('[TTS] speak() result: $result');
+      return true;
+    } catch (e, st) {
+      _lastTtsError =
+          'Voice output is unavailable on this device. Install Urdu/Punjabi voice data in Text-to-Speech settings.';
+      debugPrint('[TTS] ERROR in speak(): $e');
+      debugPrint('[TTS] STACK: $st');
+      return false;
     }
   }
 
@@ -196,11 +234,15 @@ class VoiceService {
     return 'urdu';
   }
 
-  static List<String> _preferredTtsLocales(String language) {
+  static List<String> _preferredTtsLocales(String language, {String? text}) {
     switch (_normalizeLanguage(language)) {
       case 'urdu':
         return const ['ur-PK', 'ur-IN', 'pa-PK', 'pa-IN', 'hi-IN', 'en-US'];
       case 'punjabi':
+        if (_looksArabicScript(text)) {
+          // Punjabi in this app is Shahmukhi, so Urdu-compatible voices are safer first.
+          return const ['ur-PK', 'ur-IN', 'pa-PK', 'pa-IN', 'hi-IN', 'en-US'];
+        }
         return const ['pa-PK', 'pa-IN', 'ur-PK', 'ur-IN', 'hi-IN', 'en-US'];
       case 'english':
         return const ['en-US', 'en-GB'];
@@ -209,22 +251,37 @@ class VoiceService {
     }
   }
 
-  static Future<void> _configureTtsForLanguage(String language) async {
+  static Future<void> _configureTtsForLanguage(String language, String text) async {
     final normalized = _normalizeLanguage(language);
+    debugPrint('[TTS] _configureTtsForLanguage normalized=$normalized');
 
     if (_ttsLocaleCache.containsKey(normalized)) {
-      await _flutterTts.setLanguage(_ttsLocaleCache[normalized]!);
+      final cachedLocale = _ttsLocaleCache[normalized]!;
+      debugPrint('[TTS] using cached locale=$cachedLocale for $normalized');
+      await _trySetLanguageWithFallback(
+        primary: cachedLocale,
+        normalizedLanguage: normalized,
+      );
+
       final cachedVoice = _ttsVoiceCache[normalized];
       if (cachedVoice != null) {
+        debugPrint(
+          '[TTS] applying cached voice ${cachedVoice['name']} (${cachedVoice['locale']})',
+        );
         await _flutterTts.setVoice(cachedVoice);
       }
       return;
     }
 
-    final preferred = _preferredTtsLocales(normalized);
+    final preferred = _preferredTtsLocales(normalized, text: text);
+    debugPrint('[TTS] preferred locales for $normalized: $preferred');
     final availableLanguages = await _safeGetLanguages();
+    debugPrint('[TTS] available language count=${availableLanguages.length}');
     final matchedLocale = _pickBestLocale(availableLanguages, preferred);
-    await _flutterTts.setLanguage(matchedLocale);
+    final selectedLocale = await _trySetLanguageWithFallback(
+      primary: matchedLocale,
+      normalizedLanguage: normalized,
+    );
 
     final voice = await _pickBestVoice(preferred);
     if (voice != null) {
@@ -233,8 +290,57 @@ class VoiceService {
       debugPrint('TTS voice selected for $normalized: ${voice['name']} (${voice['locale']})');
     }
 
-    _ttsLocaleCache[normalized] = matchedLocale;
-    debugPrint('TTS locale selected for $normalized: $matchedLocale');
+    _ttsLocaleCache[normalized] = selectedLocale;
+    debugPrint('TTS locale selected for $normalized: $selectedLocale');
+  }
+
+  static Future<String> _trySetLanguageWithFallback({
+    required String primary,
+    required String normalizedLanguage,
+  }) async {
+    final attempts = <String>[primary];
+    if (normalizedLanguage == 'urdu') {
+      attempts.addAll(const ['ur-PK', 'ur', 'ur-IN']);
+    } else if (normalizedLanguage == 'punjabi') {
+      attempts.addAll(const ['ur-PK', 'ur', 'ur-IN', 'pa-PK', 'pa', 'pa-IN']);
+    } else if (normalizedLanguage == 'english') {
+      attempts.addAll(const ['en-US', 'en-GB', 'en']);
+    }
+    attempts.add('en-US');
+
+    for (final locale in attempts.toSet()) {
+      try {
+        debugPrint('[TTS] trying setLanguage($locale)');
+        await _flutterTts.setLanguage(locale);
+        debugPrint('[TTS] setLanguage success: $locale');
+        return locale;
+      } catch (e) {
+        debugPrint('[TTS] setLanguage failed: $locale -> $e');
+      }
+    }
+
+    throw Exception('No supported TTS language found for $normalizedLanguage');
+  }
+
+  static Future<void> _ensureTtsReady() async {
+    try {
+      final engines = await _flutterTts.getEngines;
+      debugPrint('[TTS] available engines: $engines');
+    } catch (e) {
+      debugPrint('[TTS] getEngines failed: $e');
+    }
+
+    try {
+      final defaultEngine = await _flutterTts.getDefaultEngine;
+      debugPrint('[TTS] default engine: $defaultEngine');
+    } catch (e) {
+      debugPrint('[TTS] getDefaultEngine failed: $e');
+    }
+  }
+
+  static bool _looksArabicScript(String? text) {
+    if (text == null || text.trim().isEmpty) return true;
+    return RegExp(r'[\u0600-\u06FF]').hasMatch(text);
   }
 
   static Future<List<String>> _safeGetLanguages() async {
@@ -247,7 +353,7 @@ class VoiceService {
             .toList();
       }
     } catch (e) {
-      debugPrint('TTS getLanguages error: $e');
+      debugPrint('[TTS] getLanguages error: $e');
     }
     return const [];
   }

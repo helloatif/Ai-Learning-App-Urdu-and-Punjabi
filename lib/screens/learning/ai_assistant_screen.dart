@@ -57,7 +57,12 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       _scrollToBottom();
 
       // Speak the response
-      await VoiceService.speak(response, 'en-US');
+      final ok = await VoiceService.speak(response, 'en-US');
+      if (!ok && mounted && VoiceService.lastTtsError.isNotEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(VoiceService.lastTtsError)));
+      }
     } catch (e) {
       setState(() {
         _messages.add(
