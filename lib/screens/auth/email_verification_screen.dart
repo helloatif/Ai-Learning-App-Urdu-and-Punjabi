@@ -77,10 +77,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        await user.reload();
-        final refreshedUser = FirebaseAuth.instance.currentUser;
-
-        if (refreshedUser != null && refreshedUser.emailVerified) {
+        if (user.emailVerified) {
           // Email verified! Check if user has selected a language
           _timer?.cancel();
           if (mounted) {
@@ -97,7 +94,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 context,
                 listen: false,
               );
-              await themeProvider.loadForUser(refreshedUser.uid);
+              await themeProvider.loadForUser(user.uid);
 
               // Load user data into provider first
               final userProvider = Provider.of<UserProvider>(
@@ -122,7 +119,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
               final doc = await FirebaseFirestore.instance
                   .collection('users')
-                  .doc(refreshedUser.uid)
+                  .doc(user.uid)
                   .get();
 
               final selectedLanguage =

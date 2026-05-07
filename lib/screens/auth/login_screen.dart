@@ -75,9 +75,9 @@ class _LoginScreenState extends State<LoginScreen>
 
   void _login() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppStrings.enterEmail)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.enterEmail)),
+      );
       return;
     }
 
@@ -91,7 +91,6 @@ class _LoginScreenState extends State<LoginScreen>
         _passwordController.text,
       );
 
-      // Stop loading immediately after API call
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -99,12 +98,24 @@ class _LoginScreenState extends State<LoginScreen>
       }
 
       if (userId != null && mounted) {
-        // CRITICAL: Double-check email verification before proceeding
         final user = FirebaseService.getCurrentUser();
-        if (user == null || !user.emailVerified) {
-          // This should never happen, but as a safety net
-          // Don't clear Remember Me - just need to verify email
-          await FirebaseService.signOut(clearRememberMe: false);
+
+        if (user == null) {
+          // Proceed anyway
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('✓ Login successful!'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 1),
+              ),
+            );
+            Navigator.of(context).pushReplacementNamed('/language-selection');
+          }
+          return;
+        }
+
+        if (!user.emailVerified) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -117,14 +128,11 @@ class _LoginScreenState extends State<LoginScreen>
           return;
         }
 
-        // Save Remember Me preference, email, and password
+        // Save Remember Me preference
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('rememberMe', _rememberMe);
         if (_rememberMe) {
-          await prefs.setString(
-            'rememberedEmail',
-            _emailController.text.trim(),
-          );
+          await prefs.setString('rememberedEmail', _emailController.text.trim());
           await prefs.setString('rememberedPassword', _passwordController.text);
         } else {
           await prefs.remove('rememberedEmail');
@@ -140,7 +148,7 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           );
 
-          // Load user data first
+          // Load user data
           try {
             final themeProvider = Provider.of<ThemeProvider>(
               context,
@@ -154,35 +162,27 @@ class _LoginScreenState extends State<LoginScreen>
             );
             await userProvider.loadUserFromFirebase();
 
-            // Load gamification in background
             final gamificationProvider = Provider.of<GamificationProvider>(
               context,
               listen: false,
             );
             await gamificationProvider.loadFromFirestore();
 
-            // Load learning progress (chapter completions, quiz scores)
             final learningProvider = Provider.of<LearningProvider>(
               context,
               listen: false,
             );
             await learningProvider.loadProgressFromFirestore();
 
-            // First check SharedPreferences (fastest)
-            final prefs = await SharedPreferences.getInstance();
-            final localLanguage = prefs.getString(
-              'language_selected_flag_$userId',
-            );
+            // Check language selection
+            final prefsLocal = await SharedPreferences.getInstance();
+            final localLanguage = prefsLocal.getString('language_selected_flag_$userId');
 
             if (localLanguage != null && localLanguage.isNotEmpty) {
-              print(
-                '✅ Login: Language found in local storage (\"$localLanguage\"), going to home',
-              );
               if (mounted) Navigator.of(context).pushReplacementNamed('/home');
               return;
             }
 
-            // Fallback to Firestore check
             final doc = await FirebaseFirestore.instance
                 .collection('users')
                 .doc(userId)
@@ -191,30 +191,16 @@ class _LoginScreenState extends State<LoginScreen>
             if (!mounted) return;
 
             final selectedLanguage = doc.data()?['selectedLanguage'] as String?;
-            print('🔍 Login: Checking Firestore for user $userId');
-            print('🔍 Login: Language in Firestore = \"$selectedLanguage\"');
 
             if (selectedLanguage != null && selectedLanguage.isNotEmpty) {
-              // Save to local storage for next time
-              await prefs.setString(
-                'language_selected_flag_$userId',
-                selectedLanguage,
-              );
-              print('✅ Login: Language exists, going to home');
+              await prefsLocal.setString('language_selected_flag_$userId', selectedLanguage);
               if (mounted) Navigator.of(context).pushReplacementNamed('/home');
             } else {
-              // No language selected - go to language selection
-              print('✅ Login: No language, going to selection');
-              if (mounted)
-                Navigator.of(
-                  context,
-                ).pushReplacementNamed('/language-selection');
+              if (mounted) Navigator.of(context).pushReplacementNamed('/language-selection');
             }
           } catch (e) {
             print('⚠️ Login: Error checking language: $e');
-            // On error, default to language selection
-            if (mounted)
-              Navigator.of(context).pushReplacementNamed('/language-selection');
+            if (mounted) Navigator.of(context).pushReplacementNamed('/language-selection');
           }
         }
       } else if (mounted) {
@@ -230,50 +216,13 @@ class _LoginScreenState extends State<LoginScreen>
         setState(() {
           _isLoading = false;
         });
-        String errorMessage = 'Login failed: ${e.toString()}';
-        if (e.toString().contains('user-not-found')) {
-          errorMessage =
-              '❌ No account found with this email. Please sign up first.';
-        } else if (e.toString().contains('wrong-password')) {
-          errorMessage = '❌ Incorrect password. Please try again.';
-        } else if (e.toString().contains('invalid-email')) {
-          errorMessage = '❌ Invalid email format.';
-        } else if (e.toString().contains('invalid-credential')) {
-          errorMessage = '❌ Invalid email or password. Please try again.';
-        } else if (e.toString().contains('email-not-verified')) {
-          // Show error message and navigate to verification screen
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                '🚫 Email Not Verified!\n\nYou must verify your email before logging in.\nCheck your inbox (and spam folder) for the verification link.\n\nClick it to verify, then try logging in again.',
-              ),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 7),
-            ),
-          );
-          await Future.delayed(const Duration(seconds: 3));
-          if (mounted) {
-            Navigator.of(context).pushReplacementNamed('/email-verification');
-          }
-          return; // Exit early
-        } else if (e.toString().contains('List<Object') ||
-            e.toString().contains('PigeonUserInfo') ||
-            e.toString().contains('type cast')) {
-          // This is a Firebase plugin bug - check if user is actually logged in
-          final user = FirebaseService.getCurrentUser();
-          if (user != null && user.emailVerified) {
-            // User is actually logged in successfully
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('✓ Login successful!'),
-                backgroundColor: Colors.green,
-                duration: Duration(seconds: 2),
-              ),
-            );
-            Navigator.of(context).pushReplacementNamed('/language-selection');
-            return;
-          } else if (user != null && !user.emailVerified) {
-            // User exists but email not verified
+
+        // CRITICAL FIX: For web errors, check if user is actually logged in
+        final user = FirebaseService.getCurrentUser();
+
+        if (user != null) {
+          // User is logged in despite the error!
+          if (!user.emailVerified) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('🚫 Please verify your email first!'),
@@ -283,7 +232,28 @@ class _LoginScreenState extends State<LoginScreen>
             Navigator.of(context).pushReplacementNamed('/email-verification');
             return;
           }
-          errorMessage = '❌ Login error. Please try again.';
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✓ Login successful!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 1),
+            ),
+          );
+          Navigator.of(context).pushReplacementNamed('/language-selection');
+          return;
+        }
+
+        // No user logged in — show error message
+        String errorMessage = 'Login failed: ${e.toString()}';
+        if (e.toString().contains('user-not-found')) {
+          errorMessage = '❌ No account found with this email. Please sign up first.';
+        } else if (e.toString().contains('wrong-password')) {
+          errorMessage = '❌ Incorrect password. Please try again.';
+        } else if (e.toString().contains('invalid-email')) {
+          errorMessage = '❌ Invalid email format.';
+        } else if (e.toString().contains('invalid-credential')) {
+          errorMessage = '❌ Invalid email or password. Please try again.';
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -299,7 +269,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true, // Fix keyboard overflow
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -323,7 +293,7 @@ class _LoginScreenState extends State<LoginScreen>
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(50),
                           child: Image.asset(
-                            'assets/icons/app_icon.png',
+                            'assets/icons/app_icon1.png',
                             width: 100,
                             height: 100,
                             fit: BoxFit.cover,
@@ -472,12 +442,12 @@ class _LoginScreenState extends State<LoginScreen>
                       ],
                     ),
                   ],
-                ), // Close Column
-              ), // Close SlideTransition
-            ), // Close FadeTransition
-          ), // Close Padding
-        ), // Close SingleChildScrollView
-      ), // Close SafeArea
-    ); // Close Scaffold
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

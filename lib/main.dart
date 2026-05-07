@@ -18,7 +18,9 @@ import 'providers/gamification_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/adaptive_learning_provider.dart';
 import 'services/adaptive_quiz_service.dart';
+import 'services/firebase_service.dart';
 import 'themes/app_theme.dart';
+import 'screens/splash_screen.dart';
 
 // Global flag for language selection
 const String _languageSelectedKey = 'language_selected_flag';
@@ -60,51 +62,52 @@ void main() async {
 Future<Widget> _determineInitialScreen() async {
   await _ensureFirebaseInitialized();
 
-  final user = FirebaseAuth.instance.currentUser;
+  try {
+    final user = FirebaseAuth.instance.currentUser;
 
-  if (user != null) {
-    await user.reload();
-    final refreshedUser = FirebaseAuth.instance.currentUser;
-
-    if (refreshedUser != null && refreshedUser.emailVerified) {
-      // First check SharedPreferences (fastest, local)
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final localFlag = prefs.getString(
-          '${_languageSelectedKey}_${refreshedUser.uid}',
-        );
-
-        if (localFlag != null && localFlag.isNotEmpty) {
-          return const HomeScreen();
-        }
-      } catch (e) {}
-
-      // Fallback to Firestore check
-      try {
-        final doc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(refreshedUser.uid)
-            .get();
-
-        final selectedLanguage = doc.data()?['selectedLanguage'] as String?;
-
-        if (selectedLanguage != null && selectedLanguage.isNotEmpty) {
-          // Save to local storage for next time
+    if (user != null) {
+      if (user.emailVerified) {
+        // First check SharedPreferences (fastest, local)
+        try {
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(
-            '${_languageSelectedKey}_${refreshedUser.uid}',
-            selectedLanguage,
+          final localFlag = prefs.getString(
+            '${_languageSelectedKey}_${user.uid}',
           );
-          return const HomeScreen();
-        } else {
+
+          if (localFlag != null && localFlag.isNotEmpty) {
+            return const HomeScreen();
+          }
+        } catch (e) {}
+
+        // Fallback to Firestore check
+        try {
+          final doc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+          final selectedLanguage = doc.data()?['selectedLanguage'] as String?;
+
+          if (selectedLanguage != null && selectedLanguage.isNotEmpty) {
+            // Save to local storage for next time
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(
+              '${_languageSelectedKey}_${user.uid}',
+              selectedLanguage,
+            );
+            return const HomeScreen();
+          } else {
+            return const LanguageSelectionScreen();
+          }
+        } catch (e) {
           return const LanguageSelectionScreen();
         }
-      } catch (e) {
-        return const LanguageSelectionScreen();
+      } else if (!user.emailVerified) {
+        return const EmailVerificationScreen();
       }
-    } else if (refreshedUser != null && !refreshedUser.emailVerified) {
-      return const EmailVerificationScreen();
     }
+  } catch (e) {
+    debugPrint('⚠️ Firebase auth check error: $e');
   }
 
   return const LoginScreen();
@@ -139,7 +142,7 @@ class MyApp extends StatelessWidget {
             themeMode: themeProvider.isDarkMode
                 ? ThemeMode.dark
                 : ThemeMode.light,
-            home: _AuthGate(),
+            home: const SplashScreen(),
             onGenerateRoute: (settings) {
               // Add page transitions to all routes
               Widget page;

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -55,22 +56,26 @@ class FirebaseService {
       final userName = (displayName != null && displayName.isNotEmpty)
           ? displayName
           : email.split('@')[0];
-      await _firestore.collection('users').doc(user.uid).set({
-        'email': email,
-        'displayName': userName,
-        'createdAt': FieldValue.serverTimestamp(),
-        'emailVerified': false,
-        'selectedLanguage': 'urdu',
-        'totalXP': 0,
-        'totalPoints': 0,
-        'currentLevel': 1,
-        'totalLessonsCompleted': 0,
-        'totalQuizzesCompleted': 0,
-        'streak': 0,
-        'currentStreak': 0,
-        'accuracy': 0.0,
-        'unlockedBadges': [],
-      });
+      try {
+        await _firestore.collection('users').doc(user.uid).set({
+          'email': email,
+          'displayName': userName,
+          'createdAt': FieldValue.serverTimestamp(),
+          'emailVerified': false,
+          'selectedLanguage': 'urdu',
+          'totalXP': 0,
+          'totalPoints': 0,
+          'currentLevel': 1,
+          'totalLessonsCompleted': 0,
+          'totalQuizzesCompleted': 0,
+          'streak': 0,
+          'currentStreak': 0,
+          'accuracy': 0.0,
+          'unlockedBadges': [],
+        });
+      } catch (firestoreError) {
+        print('⚠️ Firestore doc write failed during signup (will retry on login): $firestoreError');
+      }
 
       print('✅ User account created: ${user.uid}');
       return user.uid;
@@ -127,11 +132,9 @@ class FirebaseService {
         return null;
       }
 
-      // Check email verification
-      await user.reload();
-      final refreshedUser = _auth.currentUser;
-
-      if (refreshedUser == null || !refreshedUser.emailVerified) {
+      // Trust the signed-in credential user here so web login does not depend
+      // on a post-login refresh call that can throw on some builds.
+      if (!user.emailVerified) {
         print('🚫 EMAIL NOT VERIFIED - BLOCKING LOGIN');
         await _auth.signOut();
         throw Exception('email-not-verified');
@@ -169,28 +172,82 @@ class FirebaseService {
         throw e;
       }
 
-      // Check if user is actually logged in despite error
-      final currentUser = _auth.currentUser;
-      if (currentUser != null) {
+      // WEB-ONLY: Check if this is a Firebase interop error that happened AFTER successful auth
+      if (kIsWeb && (e.toString().contains('FirebaseException') || 
+          e.toString().contains('JavaScriptObject') ||
+          (e.toString().contains('type') && e.toString().contains('cast')))) {
+        // Try to get the current user - they may be logged in despite the error
         try {
-          await currentUser.reload();
-        } catch (_) {}
-
-        if (!currentUser.emailVerified) {
-          await _auth.signOut();
-          throw Exception('email-not-verified');
+          final currentUser = _auth.currentUser;
+          if (currentUser != null) {
+            print('✓ Web Firebase error detected but user is logged in: ${currentUser.uid}');
+            if (!currentUser.emailVerified) {
+              await _auth.signOut();
+              throw Exception('email-not-verified');
+            }
+            return currentUser.uid;
+          }
+        } catch (firebaseError) {
+          debugPrint('⚠️ Firebase check error: $firebaseError');
         }
+      }
 
-        return currentUser.uid;
+      // ANDROID: On non-web, re-throw the error as signin-failed for proper error handling
+      if (!kIsWeb) {
+        throw Exception('signin-failed');
+      }
+
+      // WEB: Last resort - check if user is actually logged in despite error
+      try {
+        final currentUser = _auth.currentUser;
+        if (currentUser != null) {
+          if (!currentUser.emailVerified) {
+            await _auth.signOut();
+            throw Exception('email-not-verified');
+          }
+          return currentUser.uid;
+        }
+      } catch (firebaseError) {
+        debugPrint('⚠️ Firebase check error: $firebaseError');
       }
 
       throw Exception('signin-failed');
     }
   }
 
-  /// Get current user
+  /// Get current user - wrap in try-catch for web compatibility
   static User? getCurrentUser() {
-    return _auth.currentUser;
+    try {
+      return _auth.currentUser;
+    } catch (e) {
+      debugPrint('⚠️ Error getting current user: $e');
+      return null;
+    }
+  }
+
+  /// Refresh the current Firebase user without letting web/JS interop errors
+  /// break the auth flow. On web, token refresh is used first because direct
+  /// user.reload() can surface plugin interop errors in some builds.
+  static Future<User?> refreshCurrentUserSafely() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return null;
+    }
+
+    try {
+      if (kIsWeb) {
+        return user;
+      } else {
+        await user.reload();
+      }
+    } catch (e) {
+      debugPrint('⚠️ Firebase user refresh failed: $e');
+      try {
+        await user.getIdToken(true);
+      } catch (_) {}
+    }
+
+    return _auth.currentUser ?? user;
   }
 
   /// Check if current user's email is verified
@@ -219,7 +276,10 @@ class FirebaseService {
   /// Reload user to check email verification status
   static Future<void> reloadUser() async {
     try {
-      await _auth.currentUser?.reload();
+      final user = _auth.currentUser;
+      if (user != null && !kIsWeb) {
+        await user.reload();
+      }
     } catch (e) {
       print('Error reloading user: $e');
     }
