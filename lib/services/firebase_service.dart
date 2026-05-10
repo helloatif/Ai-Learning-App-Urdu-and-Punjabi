@@ -62,7 +62,8 @@ class FirebaseService {
           'displayName': userName,
           'createdAt': FieldValue.serverTimestamp(),
           'emailVerified': false,
-          'selectedLanguage': 'urdu',
+          'selectedLanguage': '',
+          'selectedAvatar': '',
           'totalXP': 0,
           'totalPoints': 0,
           'currentLevel': 1,
@@ -73,6 +74,14 @@ class FirebaseService {
           'accuracy': 0.0,
           'unlockedBadges': [],
         });
+
+        await _firestore.collection('leaderboard').doc(user.uid).set({
+          'displayName': userName,
+          'totalXP': 0,
+          'currentLevel': 1,
+          'selectedLanguage': '',
+          'selectedAvatar': '',
+        }, SetOptions(merge: true));
       } catch (firestoreError) {
         print('⚠️ Firestore doc write failed during signup (will retry on login): $firestoreError');
       }
@@ -152,12 +161,25 @@ class FirebaseService {
             'emailVerified': true,
             'lastLoginAt': FieldValue.serverTimestamp(),
             'createdAt': FieldValue.serverTimestamp(),
-            'selectedLanguage': 'urdu',
+            'selectedLanguage': '',
+            'selectedAvatar': '',
             'totalXP': 0,
             'totalPoints': 0,
             'currentLevel': 1,
           }, SetOptions(merge: true))
           .catchError((e) => print('Firestore update error: $e'));
+
+      _firestore.collection('leaderboard').doc(user.uid).set({
+        'displayName': (user.displayName ?? '').trim().isNotEmpty
+            ? user.displayName
+            : (user.email ?? email).split('@')[0],
+        'totalXP': 0,
+        'currentLevel': 1,
+        'selectedLanguage': '',
+        'selectedAvatar': '',
+      }, SetOptions(merge: true)).catchError(
+        (e) => print('Leaderboard update error: $e'),
+      );
 
       print('✅ User signed in successfully: ${user.uid}');
       return user.uid;
@@ -192,9 +214,10 @@ class FirebaseService {
         }
       }
 
-      // ANDROID: On non-web, re-throw the error as signin-failed for proper error handling
+      // ANDROID: Preserve the original error so the caller can surface the
+      // real Firebase auth reason instead of a generic fallback.
       if (!kIsWeb) {
-        throw Exception('signin-failed');
+        rethrow;
       }
 
       // WEB: Last resort - check if user is actually logged in despite error

@@ -190,9 +190,11 @@ class _LoginScreenState extends State<LoginScreen>
 
             if (!mounted) return;
 
-            final selectedLanguage = doc.data()?['selectedLanguage'] as String?;
+            final selectedLanguage = (doc.data()?['selectedLanguage'] ?? '')
+                .toString()
+                .trim();
 
-            if (selectedLanguage != null && selectedLanguage.isNotEmpty) {
+            if (selectedLanguage.isNotEmpty) {
               await prefsLocal.setString('language_selected_flag_$userId', selectedLanguage);
               if (mounted) Navigator.of(context).pushReplacementNamed('/home');
             } else {

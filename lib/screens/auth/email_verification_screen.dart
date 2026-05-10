@@ -122,12 +122,11 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   .doc(user.uid)
                   .get();
 
-              final selectedLanguage =
-                  doc.data()?['selectedLanguage'] as String?;
+              final selectedLanguage = (doc.data()?['selectedLanguage'] ?? '')
+                  .toString()
+                  .trim();
 
-              if (selectedLanguage != null &&
-                  selectedLanguage.isNotEmpty &&
-                  mounted) {
+              if (selectedLanguage.isNotEmpty && mounted) {
                 // Language already selected - go directly to home
                 Navigator.of(context).pushReplacementNamed('/home');
               } else if (mounted) {
@@ -194,10 +193,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 .doc(user.uid)
                 .get();
 
-            final selectedLanguage = doc.data()?['selectedLanguage'] as String?;
+            final selectedLanguage = (doc.data()?['selectedLanguage'] ?? '')
+                .toString()
+                .trim();
 
             if (mounted) {
-              if (selectedLanguage != null && selectedLanguage.isNotEmpty) {
+              if (selectedLanguage.isNotEmpty) {
                 Navigator.of(context).pushReplacementNamed('/home');
               } else {
                 Navigator.of(

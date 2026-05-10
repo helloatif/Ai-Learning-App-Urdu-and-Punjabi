@@ -36,6 +36,7 @@ Future<void>? _firebaseInitFuture;
 Future<void> _ensureFirebaseInitialized() {
   _firebaseInitFuture ??= () async {
     try {
+      debugPrint('🔄 Initializing Firebase...');
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
@@ -43,8 +44,10 @@ Future<void> _ensureFirebaseInitialized() {
       if (kIsWeb) {
         await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
       }
+
+      debugPrint('✅ Firebase initialized successfully');
     } catch (e) {
-      // Firebase initialization error - continue gracefully
+      debugPrint('❌ Firebase initialization error: $e');
     }
   }();
 
@@ -53,6 +56,7 @@ Future<void> _ensureFirebaseInitialized() {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await _ensureFirebaseInitialized();
 
   // Render the first Flutter frame immediately to reduce native splash hold time.
   runApp(const MyApp());
@@ -61,55 +65,9 @@ void main() async {
 // Helper function to determine initial screen based on auth state
 Future<Widget> _determineInitialScreen() async {
   await _ensureFirebaseInitialized();
-
-  try {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user != null) {
-      if (user.emailVerified) {
-        // First check SharedPreferences (fastest, local)
-        try {
-          final prefs = await SharedPreferences.getInstance();
-          final localFlag = prefs.getString(
-            '${_languageSelectedKey}_${user.uid}',
-          );
-
-          if (localFlag != null && localFlag.isNotEmpty) {
-            return const HomeScreen();
-          }
-        } catch (e) {}
-
-        // Fallback to Firestore check
-        try {
-          final doc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
-
-          final selectedLanguage = doc.data()?['selectedLanguage'] as String?;
-
-          if (selectedLanguage != null && selectedLanguage.isNotEmpty) {
-            // Save to local storage for next time
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString(
-              '${_languageSelectedKey}_${user.uid}',
-              selectedLanguage,
-            );
-            return const HomeScreen();
-          } else {
-            return const LanguageSelectionScreen();
-          }
-        } catch (e) {
-          return const LanguageSelectionScreen();
-        }
-      } else if (!user.emailVerified) {
-        return const EmailVerificationScreen();
-      }
-    }
-  } catch (e) {
-    debugPrint('⚠️ Firebase auth check error: $e');
-  }
-
+  // Show Login first on app start. After successful login the
+  // login flow will check SharedPreferences/Firestore for the
+  // selected language and navigate to Home or LanguageSelection.
   return const LoginScreen();
 }
 

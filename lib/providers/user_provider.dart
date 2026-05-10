@@ -43,11 +43,31 @@ class UserProvider extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_avatarPrefsKey(firebaseUser.uid));
-    final normalized = saved == 'male' || saved == 'female' ? saved : null;
+
+    String? normalized;
+    if (saved == 'male' || saved == 'female') {
+      normalized = saved;
+    } else {
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(firebaseUser.uid)
+            .get();
+        final firestoreValue = (userDoc.data()?['selectedAvatar'] ?? '')
+            .toString()
+            .trim();
+        if (firestoreValue == 'male' || firestoreValue == 'female') {
+          normalized = firestoreValue;
+        }
+      } catch (e) {
+        debugPrint('⚠️ Failed to load avatar from Firestore: $e');
+      }
+    }
 
     if (_selectedAvatar == normalized) return;
 
     _selectedAvatar = normalized;
+    await _syncLeaderboardAvatarOnly(firebaseUser.uid, normalized ?? '');
     notifyListeners();
   }
 
@@ -63,6 +83,14 @@ class UserProvider extends ChangeNotifier {
     } else {
       await prefs.setString(_avatarPrefsKey(firebaseUser.uid), normalized);
     }
+
+    await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).set({
+      'selectedAvatar': normalized ?? '',
+    }, SetOptions(merge: true));
+
+    await FirebaseFirestore.instance.collection('leaderboard').doc(firebaseUser.uid).set({
+      'selectedAvatar': normalized ?? '',
+    }, SetOptions(merge: true));
 
     if (_selectedAvatar == normalized) return;
 
@@ -94,17 +122,25 @@ class UserProvider extends ChangeNotifier {
             id: firebaseUser.uid,
             email: firebaseUser.email ?? '',
             name: data['displayName'] ?? emailPrefix,
-            selectedLanguage: data['selectedLanguage'] ?? 'urdu',
+            selectedLanguage: (data['selectedLanguage'] ?? '').toString().trim().toLowerCase(),
+            unlockedBadges: List<String>.from(data['unlockedBadges'] ?? []),
             points: (data['totalXP'] ?? data['totalPoints'] ?? 0) as int,
             level:
                 data['currentLevel'] ??
                 ((data['totalXP'] ?? 0) / 100).floor() + 1,
-            unlockedBadges: List<String>.from(data['unlockedBadges'] ?? []),
             createdAt:
                 (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
           );
           _isAuthenticated = true;
           notifyListeners();
+
+          await _syncLeaderboardEntry(
+            firebaseUser.uid,
+            _currentUser!.name,
+            _currentUser!.points,
+            _currentUser!.level,
+            _currentUser!.selectedLanguage.trim().toLowerCase(),
+          );
 
           await loadSelectedAvatar();
         } else {
@@ -116,7 +152,8 @@ class UserProvider extends ChangeNotifier {
               .set({
                 'email': firebaseUser.email ?? '',
                 'displayName': fallbackName,
-                'selectedLanguage': 'urdu',
+                'selectedLanguage': '',
+                'selectedAvatar': '',
                 'totalXP': 0,
                 'totalPoints': 0,
                 'currentLevel': 1,
@@ -128,7 +165,7 @@ class UserProvider extends ChangeNotifier {
             id: firebaseUser.uid,
             email: firebaseUser.email ?? '',
             name: fallbackName,
-            selectedLanguage: 'urdu',
+            selectedLanguage: '',
             points: 0,
             level: 1,
             unlockedBadges: [],
@@ -136,6 +173,14 @@ class UserProvider extends ChangeNotifier {
           );
           _isAuthenticated = true;
           notifyListeners();
+
+          await _syncLeaderboardEntry(
+            firebaseUser.uid,
+            fallbackName,
+            0,
+            1,
+            'urdu',
+          );
 
           await loadSelectedAvatar();
         }
@@ -151,6 +196,8 @@ class UserProvider extends ChangeNotifier {
       debugPrint('❌ No Firebase user logged in, cannot save language');
       return;
     }
+    // Normalize the language value
+    final normalizedLanguage = language.toString().trim().toLowerCase();
 
     // Update local user object if exists
     if (_currentUser != null) {
@@ -158,7 +205,7 @@ class UserProvider extends ChangeNotifier {
         id: _currentUser!.id,
         email: _currentUser!.email,
         name: _currentUser!.name,
-        selectedLanguage: language,
+        selectedLanguage: normalizedLanguage,
         points: _currentUser!.points,
         level: _currentUser!.level,
         unlockedBadges: _currentUser!.unlockedBadges,
@@ -174,15 +221,25 @@ class UserProvider extends ChangeNotifier {
 
       // Always use set with merge to create or update
       await userRef.set({
-        'selectedLanguage': language,
+        'selectedLanguage': normalizedLanguage,
         'email': firebaseUser.email ?? '',
         'displayName': firebaseUser.email?.split('@')[0] ?? 'User',
         'updatedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(), // For new users
       }, SetOptions(merge: true));
 
+      if (_currentUser != null) {
+        await _syncLeaderboardEntry(
+          firebaseUser.uid,
+          _currentUser!.name,
+          _currentUser!.points,
+          _currentUser!.level,
+          normalizedLanguage,
+        );
+      }
+
       debugPrint(
-        '✅ Language "$language" saved to Firestore for user ${firebaseUser.uid}',
+        '✅ Language "$normalizedLanguage" saved to Firestore for user ${firebaseUser.uid}',
       );
     } catch (e) {
       debugPrint('❌ Failed to save language to Firestore: $e');
@@ -200,5 +257,36 @@ class UserProvider extends ChangeNotifier {
     _currentUser = null;
     _isAuthenticated = false;
     notifyListeners();
+  }
+
+  Future<void> _syncLeaderboardEntry(
+    String userId,
+    String displayName,
+    int totalXP,
+    int currentLevel,
+    String selectedLanguage,
+  ) async {
+    try {
+      final selectedAvatar = _selectedAvatar ?? '';
+      await FirebaseFirestore.instance.collection('leaderboard').doc(userId).set({
+        'displayName': displayName,
+        'totalXP': totalXP,
+        'currentLevel': currentLevel,
+        'selectedLanguage': selectedLanguage.toString().trim().toLowerCase(),
+        'selectedAvatar': selectedAvatar,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('❌ Failed to sync leaderboard entry: $e');
+    }
+  }
+
+  Future<void> _syncLeaderboardAvatarOnly(String userId, String selectedAvatar) async {
+    try {
+      await FirebaseFirestore.instance.collection('leaderboard').doc(userId).set({
+        'selectedAvatar': selectedAvatar,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('❌ Failed to sync leaderboard avatar: $e');
+    }
   }
 }

@@ -100,6 +100,15 @@ class GamificationProvider extends ChangeNotifier {
         debugPrint(
           '✓ Loaded gamification data: $_totalPoints XP, Level $_currentLevel, Streak $_streak',
         );
+        
+        // Sync to leaderboard on load
+        _syncToLeaderboard(user.uid, user.displayName ?? user.email ?? 'User');
+        
+        notifyListeners();
+      } else {
+        // If the gamification doc does not exist yet, still create a leaderboard entry
+        _isLoaded = true;
+        _syncToLeaderboard(user.uid, user.displayName ?? user.email ?? 'User');
         notifyListeners();
       }
     } catch (e) {
@@ -138,9 +147,63 @@ class GamificationProvider extends ChangeNotifier {
         'unlockedBadges': badgesData,
       }, SetOptions(merge: true));
 
+      // Also update leaderboard collection for public visibility
+      // Include user's selectedLanguage and avatar if present
+      try {
+        final userDocRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        final userDoc = await userDocRef.get();
+        final userData = userDoc.data() as Map<String, dynamic>? ?? {};
+        final docDisplayName = (userData['displayName'] ?? '').toString().trim();
+        final displayNameToUse = docDisplayName.isNotEmpty
+            ? docDisplayName
+            : (user.displayName ?? user.email ?? 'User');
+
+        final userLang = (userData['selectedLanguage'] ?? '').toString().trim().toLowerCase();
+        final userAvatar = (userData['selectedAvatar'] ?? '').toString().trim();
+
+        await FirebaseFirestore.instance.collection('leaderboard').doc(user.uid).set({
+          'displayName': displayNameToUse,
+          'totalXP': _totalPoints,
+          'currentLevel': _currentLevel,
+          'selectedLanguage': userLang,
+          'selectedAvatar': userAvatar,
+        }, SetOptions(merge: true));
+      } catch (e) {
+        // Fallback: write without language/avatar but use auth displayName if present
+        await FirebaseFirestore.instance.collection('leaderboard').doc(user.uid).set({
+          'displayName': user.displayName ?? user.email ?? 'User',
+          'totalXP': _totalPoints,
+          'currentLevel': _currentLevel,
+        }, SetOptions(merge: true));
+      }
+
       debugPrint('✓ Saved progress: $_totalPoints XP, Level $_currentLevel');
     } catch (e) {
       debugPrint('⚠ Error saving progress: $e');
+    }
+  }
+
+  /// Sync user data to leaderboard collection
+  Future<void> _syncToLeaderboard(String userId, String displayName) async {
+    try {
+      // Try to include user's selectedLanguage/avatar from users doc
+      final userDocRef = FirebaseFirestore.instance.collection('users').doc(userId);
+      final userDoc = await userDocRef.get();
+      final userData = userDoc.data() as Map<String, dynamic>? ?? {};
+      final docDisplayName = (userData['displayName'] ?? '').toString().trim();
+      final displayNameToUse = docDisplayName.isNotEmpty ? docDisplayName : displayName;
+      final userLang = (userData['selectedLanguage'] ?? '').toString().trim().toLowerCase();
+      final userAvatar = (userData['selectedAvatar'] ?? '').toString().trim();
+
+      await FirebaseFirestore.instance.collection('leaderboard').doc(userId).set({
+        'displayName': displayNameToUse,
+        'totalXP': _totalPoints,
+        'currentLevel': _currentLevel,
+        'selectedLanguage': userLang,
+        'selectedAvatar': userAvatar,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('⚠ Error syncing to leaderboard: $e');
     }
   }
 

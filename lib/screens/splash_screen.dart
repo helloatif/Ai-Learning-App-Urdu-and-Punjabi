@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../themes/app_theme.dart';
 import '../services/firebase_service.dart';
 import 'auth/login_screen.dart';
+import 'auth/onboarding_screen.dart';
 import 'auth/email_verification_screen.dart';
 import 'home_screen.dart';
 import 'learning/language_selection_screen.dart';
@@ -38,28 +39,12 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<Widget> _determineNextScreen() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
+    final prefs = await SharedPreferences.getInstance();
+    final hasSeenOnboarding =
+        prefs.getBool(OnboardingScreen.hasSeenOnboardingKey) ?? false;
 
-      if (user != null) {
-        if (user.emailVerified) {
-          final prefs = await SharedPreferences.getInstance();
-          final languageSelected =
-              prefs.getBool('languageSelected_${user.uid}') ?? false;
-
-          if (languageSelected) {
-            return const HomeScreen();
-          }
-
-          return const LanguageSelectionScreen();
-        }
-
-        if (!user.emailVerified) {
-          return const EmailVerificationScreen();
-        }
-      }
-    } catch (_) {
-      // Fall back to login screen.
+    if (!hasSeenOnboarding) {
+      return const OnboardingScreen();
     }
 
     return const LoginScreen();

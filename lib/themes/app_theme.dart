@@ -2,33 +2,33 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   // Modern Duolingo-inspired Color Scheme
-  static const Color primaryGreen = Color(0xFF58CC02); // Duolingo green
-  static const Color lightGreen = Color(0xFF89E219);
-  static const Color darkGreen = Color(0xFF3D8B00);
+  static const Color primaryGreen = Color(0xFF4575FA); // Vivid blue
+  static const Color lightGreen = Color(0xFFFEC72C); // Orange highlights
+  static const Color darkGreen = Color(0xFF3D414C);
   static const Color white = Color(0xFFFFFFFF);
-  static const Color lightGray = Color(0xFFF7F7F7);
-  static const Color darkGray = Color(0xFF424242);
-  static const Color accentGreen = Color(0xFFA5D6A7);
-  static const Color textDark = Color(0xFF3C3C3C);
+  static const Color lightGray = Color(0xFFFFFFFF);
+  static const Color darkGray = Color(0xFF3D414C);
+  static const Color accentGreen = Color(0xFFFEC72C);
+  static const Color textDark = Color(0xFF3D414C);
 
   // Additional modern colors
-  static const Color blue = Color(0xFF1CB0F6); // Progress blue
-  static const Color orange = Color(0xFFFF9600); // XP/Achievement orange
-  static const Color red = Color(0xFFFF4B4B); // Error/Challenge red
-  static const Color purple = Color(0xFF8B4DFF); // Premium/Special
-  static const Color yellow = Color(0xFFFFC800); // Streak yellow
-  static const Color pink = Color(0xFFFF7FED); // Accent pink
+  static const Color blue = Color(0xFF4575FA);
+  static const Color orange = Color(0xFFFEC72C);
+  static const Color red = Color(0xFFFEC72C);
+  static const Color purple = Color(0xFF4575FA);
+  static const Color yellow = Color(0xFFFEC72C);
+  static const Color pink = Color(0xFFFEC72C);
 
   // Surface colors
   static const Color cardBackground = Color(0xFFFFFFFF);
-  static const Color backgroundGradientStart = Color(0xFFF8F9FA);
-  static const Color backgroundGradientEnd = Color(0xFFEDF2F7);
+  static const Color backgroundGradientStart = Color(0xFFFFFFFF);
+  static const Color backgroundGradientEnd = Color(0xFFFFFFFF);
 
   // Dark theme colors
-  static const Color darkBackground = Color(0xFF0F172A); // Slate 900
-  static const Color darkSurface = Color(0xFF1E293B); // Slate 800
-  static const Color darkSurfaceVariant = Color(0xFF334155); // Slate 700
-  static const Color textLight = Color(0xFFE2E8F0);
+  static const Color darkBackground = Color(0xFF000000);
+  static const Color darkSurface = Color(0xFF3D414C);
+  static const Color darkSurfaceVariant = Color(0xFF3D414C);
+  static const Color textLight = Color(0xFFFFFFFF);
 
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
@@ -41,7 +41,7 @@ class AppTheme {
       surface: white,
       onSurface: textDark,
       surfaceDim: lightGray,
-      error: const Color(0xFFB3261E),
+      error: const Color(0xFFFEC72C),
     ),
     scaffoldBackgroundColor: lightGray,
     appBarTheme: const AppBarTheme(
@@ -72,23 +72,23 @@ class AppTheme {
     ),
     textSelectionTheme: const TextSelectionThemeData(
       cursorColor: primaryGreen,
-      selectionColor: Color(0x6658CC02),
+      selectionColor: Color(0x664575FA),
       selectionHandleColor: primaryGreen,
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: white,
-      hintStyle: const TextStyle(color: Color(0xFF757575)),
+      hintStyle: const TextStyle(color: Color(0xFF3D414C)),
       labelStyle: const TextStyle(color: textDark),
       floatingLabelStyle: const TextStyle(color: primaryGreen),
       contentPadding: const EdgeInsets.all(16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFFBDBDBD)),
+        borderSide: const BorderSide(color: Color(0xFF3D414C)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFFBDBDBD)),
+        borderSide: const BorderSide(color: Color(0xFF3D414C)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
@@ -168,7 +168,7 @@ class AppTheme {
       surface: darkSurface,
       onSurface: textLight,
       surfaceDim: darkSurfaceVariant,
-      error: const Color(0xFFCF6679),
+      error: const Color(0xFFFEC72C),
     ),
     scaffoldBackgroundColor: darkBackground,
     appBarTheme: const AppBarTheme(
@@ -199,23 +199,23 @@ class AppTheme {
     ),
     textSelectionTheme: const TextSelectionThemeData(
       cursorColor: primaryGreen,
-      selectionColor: Color(0x6658CC02),
+      selectionColor: Color(0x664575FA),
       selectionHandleColor: primaryGreen,
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFF111827),
-      hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
+      fillColor: const Color(0xFF000000),
+      hintStyle: const TextStyle(color: Color(0xFF3D414C)),
       labelStyle: const TextStyle(color: textLight),
       floatingLabelStyle: const TextStyle(color: lightGreen),
       contentPadding: const EdgeInsets.all(16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFF64748B)),
+        borderSide: const BorderSide(color: Color(0xFF3D414C)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFF64748B)),
+        borderSide: const BorderSide(color: Color(0xFF3D414C)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
@@ -223,11 +223,11 @@ class AppTheme {
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFFFB7185)),
+        borderSide: const BorderSide(color: Color(0xFFFEC72C)),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Color(0xFFFB7185), width: 2),
+        borderSide: const BorderSide(color: Color(0xFFFEC72C), width: 2),
       ),
     ),
     cardTheme: CardThemeData(
@@ -279,7 +279,7 @@ class AppTheme {
       bodySmall: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.normal,
-        color: Color(0xFF9E9E9E),
+        color: Color(0xFF3D414C),
       ),
     ),
   );
