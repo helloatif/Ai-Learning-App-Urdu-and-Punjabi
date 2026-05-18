@@ -11,12 +11,12 @@ import 'screens/auth/signup_screen.dart';
 import 'screens/auth/email_verification_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/learning/ai_assistant_screen.dart';
-import 'screens/learning/language_selection_screen.dart';
 import 'providers/user_provider.dart';
 import 'providers/learning_provider.dart';
 import 'providers/gamification_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/adaptive_learning_provider.dart';
+import 'screens/learning/language_selection_screen.dart';
 import 'services/adaptive_quiz_service.dart';
 import 'services/firebase_service.dart';
 import 'themes/app_theme.dart';
@@ -155,8 +155,7 @@ class MyApp extends StatelessWidget {
               '/signup': (context) => const SignupScreen(),
               '/email-verification': (context) =>
                   const EmailVerificationScreen(),
-              '/language-selection': (context) =>
-                  const LanguageSelectionScreen(),
+                '/language-selection': (context) => const LanguageSelectionScreen(),
               '/home': (context) => const HomeScreen(),
               '/ai-assistant': (context) => const AIAssistantScreen(),
             },

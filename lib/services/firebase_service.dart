@@ -60,6 +60,7 @@ class FirebaseService {
         await _firestore.collection('users').doc(user.uid).set({
           'email': email,
           'displayName': userName,
+          'congratsShown': false,
           'createdAt': FieldValue.serverTimestamp(),
           'emailVerified': false,
           'selectedLanguage': '',
@@ -141,12 +142,37 @@ class FirebaseService {
         return null;
       }
 
-      // Trust the signed-in credential user here so web login does not depend
-      // on a post-login refresh call that can throw on some builds.
-      if (!user.emailVerified) {
-        print('🚫 EMAIL NOT VERIFIED - BLOCKING LOGIN');
-        await _auth.signOut();
-        throw Exception('email-not-verified');
+      // Ensure we have the freshest user state (emailVerified can change
+      // after the user clicks the verification link). Attempt a safe
+      // refresh; if it fails we will still perform a Firestore fallback.
+      try {
+        await refreshCurrentUserSafely();
+      } catch (e) {
+        debugPrint('Warning: refreshCurrentUserSafely failed: $e');
+      }
+
+      final latestUser = _auth.currentUser ?? user;
+
+      // If emailVerified is false locally, consult Firestore as a fallback
+      // in case the platform/local token is stale. If still not verified,
+      // block the login.
+      if (!(latestUser.emailVerified ?? false)) {
+        try {
+          final doc = await _firestore.collection('users').doc(latestUser.uid).get();
+          final docEmailVerified = (doc.data() ?? {})['emailVerified'] ?? false;
+          if (docEmailVerified != true) {
+            print('🚫 EMAIL NOT VERIFIED - BLOCKING LOGIN');
+            await _auth.signOut();
+            throw Exception('email-not-verified');
+          } else {
+            // Firestore says verified — continue (best-effort fallback)
+            print('⚠️ Auth user not yet refreshed but Firestore indicates verified. Proceeding.');
+          }
+        } catch (e) {
+          print('🚫 EMAIL NOT VERIFIED and Firestore fallback failed: $e');
+          await _auth.signOut();
+          throw Exception('email-not-verified');
+        }
       }
 
       // Ensure user document exists for leaderboard/profile visibility.

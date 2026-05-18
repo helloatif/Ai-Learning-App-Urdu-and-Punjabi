@@ -102,10 +102,6 @@ flutter:
   # Assets configuration
   assets:
     - assets/images/
-    - assets/images/9440461.jpg
-    - assets/images/10491839.jpg
-    - assets/animations/
-    - assets/animations/Artboard_1.json
     - assets/icons/
     - assets/icons/app_icon1.png
     - assets/data/

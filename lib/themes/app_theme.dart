@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   // Modern Duolingo-inspired Color Scheme
-  static const Color primaryGreen = Color(0xFF4575FA); // Vivid blue
+  static const Color primaryGreen = Color(0xFF2196F3); // Sky blue
   static const Color lightGreen = Color(0xFFFEC72C); // Orange highlights
   static const Color darkGreen = Color(0xFF3D414C);
   static const Color white = Color(0xFFFFFFFF);

@@ -1,159 +1,196 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../themes/app_theme.dart';
+
 import 'login_screen.dart';
 import 'signup_screen.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
-
-  static const String hasSeenOnboardingKey = 'hasSeenOnboarding';
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  bool _isTransitioning = false;
+  late final PageController _pageController;
 
-  Future<void> _onGetStarted() async {
-    if (_isTransitioning) return;
+  final List<OnboardingData> _onboardingData = [
+    const OnboardingData(
+      headline: 'Lesson on demand',
+      description:
+          'Now, It\'s your turn to choose the subject of your course. In SpeakUp, you will learn vocabulary, phrases, pronunciations, and grammar patterns through several courses with various topics. Try it and find its efficiency.',
+      imagePath: 'assets/images/homescreen1logo.png',
+    ),
+    const OnboardingData(
+      headline: 'It\'s gamified!',
+      description:
+          'The smart competitive ones, or those who look for the fun side of everything, will have a great learning experience here. Every step you take, any progress you make, SpeakUp has a reward to encourage your achievement.',
+      imagePath: 'assets/images/homescreen2logo.png',
+    ),
+    const OnboardingData(
+      headline: 'Take learning beyond the classroom walls',
+      description: 'Find certified teachers, personalize your own English learning plan.',
+      imagePath: 'assets/images/homescreen3logo.png',
+    ),
+  ];
 
-    setState(() {
-      _isTransitioning = true;
-    });
-
-    if (!mounted) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(OnboardingScreen.hasSeenOnboardingKey, true);
-
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SignupScreen()),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
   }
 
-  Future<void> _onAlreadyHaveAccount() async {
-    if (_isTransitioning) return;
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
-    setState(() {
-      _isTransitioning = true;
-    });
-
-    if (!mounted) return;
+  void _navigate(bool isSignup) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return isSignup ? const SignupScreen() : const LoginScreen();
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF4575FA),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: SafeArea(
-          child: SizedBox(
-            width: double.infinity,
-            child: Column(
-              children: [
-                const Spacer(),
-                Expanded(
-                  flex: 6,
-                  child: Center(
-                    child: SizedBox(
-                      width: 200,
-                      height: 200,
-                      child: Image.asset(
-                        'assets/icons/app_icon1.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  flex: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'Learn for free.',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            fontStyle: FontStyle.italic,
-                            color: Colors.white,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 28),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isTransitioning ? null : _onGetStarted,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFFC107),
-                              foregroundColor: Colors.black,
-                              minimumSize: const Size.fromHeight(60),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                              side: const BorderSide(color: Color(0xFFFFC107), width: 2),
-                              elevation: 8,
-                              shadowColor: const Color(0xFFFFC107).withOpacity(0.6),
-                              disabledBackgroundColor: Colors.white.withOpacity(0.6),
-                            ),
-                            child: const Text(
-                              'GET STARTED',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                fontStyle: FontStyle.italic,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isTransitioning ? null : _onAlreadyHaveAccount,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black,
-                              minimumSize: const Size.fromHeight(60),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                              side: const BorderSide(color: Color(0xFFFFC107), width: 2),
-                              elevation: 8,
-                              shadowColor: const Color(0xFFFFC107).withOpacity(0.6),
-                              disabledBackgroundColor: Colors.white.withOpacity(0.6),
-                            ),
-                            child: const Text(
-                              'I ALREADY HAVE AN ACCOUNT',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                fontStyle: FontStyle.italic,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: _onboardingData.length,
+                itemBuilder: (context, index) {
+                  final data = _onboardingData[index];
+                  return _OnboardingPageContent(data: data);
+                },
+              ),
             ),
-          ),
+
+            // Page indicator
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: SmoothPageIndicator(
+                controller: _pageController,
+                count: _onboardingData.length,
+                effect: WormEffect(
+                  activeDotColor: Colors.blue,
+                  dotColor: Colors.grey.shade300,
+                  dotHeight: 8,
+                  dotWidth: 24,
+                  spacing: 8,
+                ),
+                onDotClicked: (i) => _pageController.animateToPage(i, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut),
+              ),
+            ),
+
+            // Actions (fixed at bottom)
+            Padding(
+              padding: EdgeInsets.fromLTRB(24, 0, 24, MediaQuery.of(context).padding.bottom + 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () => _navigate(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      child: const Text("Let's go!", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Already got an account? ', style: TextStyle(fontSize: 16, color: Color(0xFF666666))),
+                      GestureDetector(onTap: () => _navigate(false), child: const Text('LOGIN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue))),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _OnboardingPageContent extends StatelessWidget {
+  const _OnboardingPageContent({required this.data});
+
+  final OnboardingData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 255,
+            width: double.infinity,
+            child: Image.asset(
+              data.imagePath,
+              fit: BoxFit.contain,
+              alignment: Alignment.center,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            data.headline,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A2E),
+              fontFamily: 'Nunito',
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            data.description,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 16,
+              color: Color(0xFF666666),
+              fontFamily: 'Nunito',
+              height: 1.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class OnboardingData {
+  final String headline;
+  final String description;
+  final String imagePath;
+
+  const OnboardingData({
+    required this.headline,
+    required this.description,
+    required this.imagePath,
+  });
 }

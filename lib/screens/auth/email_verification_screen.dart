@@ -198,17 +198,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 .trim();
 
             if (mounted) {
-              if (selectedLanguage.isNotEmpty) {
-                Navigator.of(context).pushReplacementNamed('/home');
-              } else {
-                Navigator.of(
-                  context,
-                ).pushReplacementNamed('/language-selection');
-              }
+              // Language selection exists separately — go to selection
+              Navigator.of(context).pushReplacementNamed('/language-selection');
             }
           } catch (e) {
             if (mounted) {
-              Navigator.of(context).pushReplacementNamed('/language-selection');
+              Navigator.of(context).pushReplacementNamed('/home');
             }
           }
         }
@@ -285,160 +280,123 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Verify Your Email'),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: const Text(
+          'Verify Your Email',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.black),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _signOut,
             tooltip: 'Sign out',
+            color: Colors.black,
           ),
         ],
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Email icon
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryGreen.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.email_outlined,
-                  size: 60,
-                  color: AppTheme.primaryGreen,
+              SizedBox(
+                height: 220,
+                child: Image.asset(
+                  'assets/images/Authentication_amico.png',
+                  fit: BoxFit.contain,
                 ),
               ),
-              const SizedBox(height: 32),
-
-              // Title
+              const SizedBox(height: 24),
               Text(
                 'Verify Your Email',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.darkGray,
-                ),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                      fontStyle: FontStyle.italic,
+                    ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 16),
-
-              // Email address
+              const SizedBox(height: 12),
               Text(
                 user?.email ?? '',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.primaryGreen,
-                  fontWeight: FontWeight.w600,
-                ),
+                      color: AppTheme.primaryGreen,
+                      fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
+                    ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'We\'ve sent a verification email to your inbox. Please click the link in the email to verify your account.',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: AppTheme.darkGray,
+                      fontStyle: FontStyle.italic,
+                    ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-
-              // Instructions
-              Text(
-                'We\'ve sent a verification email to your inbox. Please click the link in the email to verify your account.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(color: AppTheme.darkGray),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-
-              // Auto-checking indicator
-              if (_isCheckingVerification)
-                const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          AppTheme.primaryGreen,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Checking verification...',
-                      style: TextStyle(
-                        color: AppTheme.primaryGreen,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              const SizedBox(height: 32),
-
-              // Resend button
               SizedBox(
-                width: double.infinity,
+                width: MediaQuery.of(context).size.width * 0.78,
                 child: ElevatedButton.icon(
-                  onPressed: (_canResend && !_isResending)
-                      ? _resendVerificationEmail
-                      : null,
+                  onPressed: (_canResend && !_isResending) ? _resendVerificationEmail : null,
                   icon: _isResending
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
+                          width: 18,
+                          height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : const Icon(Icons.refresh),
+                      : const Icon(Icons.refresh, size: 20),
                   label: Text(
                     _isResending
                         ? 'Sending...'
                         : _canResend
-                        ? 'Resend Verification Email'
-                        : 'Resend in $_resendCooldown seconds',
-                    style: const TextStyle(fontSize: 16),
+                            ? 'Resend Verification Email'
+                            : 'Resend in $_resendCooldown seconds',
+                    style: const TextStyle(fontSize: 15, fontStyle: FontStyle.italic),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryGreen,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-
-              // Back to Login button
-              TextButton(
-                onPressed: () {
-                  _timer?.cancel();
-                  // Don't clear Remember Me - user just needs to verify email
-                  FirebaseService.signOut(clearRememberMe: false);
-                  Navigator.of(context).pushReplacementNamed('/login');
-                },
-                child: const Text(
-                  'Back to Login',
-                  style: TextStyle(
-                    color: AppTheme.primaryGreen,
-                    fontSize: 16,
-                    decoration: TextDecoration.underline,
+              const SizedBox(height: 12),
+              SizedBox(
+                width: MediaQuery.of(context).size.width * 0.78,
+                child: ElevatedButton(
+                  onPressed: () {
+                    _timer?.cancel();
+                    FirebaseService.signOut(clearRememberMe: false);
+                    Navigator.of(context).pushReplacementNamed('/login');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGreen,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
+                  child: const Text('Back to Login', style: TextStyle(fontSize: 15, fontStyle: FontStyle.italic)),
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // Help text
+              const SizedBox(height: 18),
               Text(
                 'Didn\'t receive the email? Check your spam folder or resend.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.darkGray,
-                  fontStyle: FontStyle.italic,
-                ),
+                      color: AppTheme.darkGray,
+                      fontStyle: FontStyle.italic,
+                    ),
                 textAlign: TextAlign.center,
               ),
             ],
