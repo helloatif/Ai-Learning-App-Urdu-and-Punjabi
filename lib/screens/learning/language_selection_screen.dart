@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../themes/app_theme.dart';
 import '../../providers/user_provider.dart';
+import 'language_level_screen.dart';
+import '../../services/language_onboarding_service.dart';
 
 class LanguageSelectionScreen extends StatefulWidget {
   const LanguageSelectionScreen({super.key});
@@ -23,14 +25,7 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
     final userId = FirebaseAuth.instance.currentUser?.uid;
     try {
       if (userId != null) {
-        // Save locally first
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('language_selected_flag_$userId', code);
-
-        // Save to Firestore (background)
-        FirebaseFirestore.instance.collection('users').doc(userId).set({
-          'selectedLanguage': code,
-        }, SetOptions(merge: true));
+        await LanguageOnboardingService.saveSelectedLanguage(userId, code);
 
         // Update provider
         final userProvider = Provider.of<UserProvider>(context, listen: false);
@@ -41,7 +36,36 @@ class _LanguageSelectionScreenState extends State<LanguageSelectionScreen> {
     } catch (e) {
       debugPrint('Error saving language selection: $e');
     } finally {
-      if (mounted) Navigator.of(context).pushReplacementNamed('/home');
+      if (!mounted) return;
+
+      if (userId != null) {
+        final completed = await LanguageOnboardingService.isLevelCompleted(userId);
+        if (completed) {
+          final timeCompleted = await LanguageOnboardingService.isTimeSelectionCompleted(userId);
+          final preparingCompleted = timeCompleted
+              ? await LanguageOnboardingService.isPreparingScreenCompleted(userId)
+              : false;
+          Navigator.of(context).pushReplacementNamed(
+            timeCompleted ? (preparingCompleted ? '/home' : '/preparing') : '/time-selection',
+          );
+          return;
+        }
+      }
+
+      final selectedLanguage = _languages.firstWhere(
+        (language) => language['code'] == code,
+        orElse: () => _languages.first,
+      );
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => LanguageLevelScreen(
+            languageCode: selectedLanguage['code']!,
+            languageName: selectedLanguage['name']!,
+            mascotAsset: 'assets/icons/caticon.png',
+          ),
+        ),
+      );
     }
   }
 

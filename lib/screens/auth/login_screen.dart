@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../themes/app_theme.dart';
 import '../../services/firebase_service.dart';
+import '../../services/language_onboarding_service.dart';
 import '../../localization/app_strings.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/gamification_provider.dart';
@@ -186,12 +187,25 @@ class _LoginScreenState extends State<LoginScreen>
             );
             await learningProvider.loadProgressFromFirestore();
 
-            // Check language selection
-            final prefsLocal = await SharedPreferences.getInstance();
-            final localLanguage = prefsLocal.getString('language_selected_flag_$userId');
+            // Check language selection and one-time level onboarding
+            final localLanguage = await LanguageOnboardingService.getSelectedLanguage(userId);
 
-            if (localLanguage != null && localLanguage.isNotEmpty) {
-              if (mounted) Navigator.of(context).pushReplacementNamed('/home');
+            if (localLanguage.isNotEmpty) {
+              final levelCompleted = await LanguageOnboardingService.isLevelCompleted(userId);
+              final timeCompleted = levelCompleted
+                  ? await LanguageOnboardingService.isTimeSelectionCompleted(userId)
+                  : false;
+              final preparingCompleted = timeCompleted
+                  ? await LanguageOnboardingService.isPreparingScreenCompleted(userId)
+                  : false;
+              if (mounted) {
+                Navigator.of(context).pushReplacementNamed(
+                  !levelCompleted
+                      ? '/language-level'
+                      : (!timeCompleted ? '/time-selection' : (preparingCompleted ? '/home' : '/preparing')),
+                  arguments: localLanguage,
+                );
+              }
               return;
             }
 
@@ -223,13 +237,21 @@ class _LoginScreenState extends State<LoginScreen>
               return;
             }
 
-            final selectedLanguage = (doc.data()?['selectedLanguage'] ?? '')
-                .toString()
-                .trim();
+            final selectedLanguage = (doc.data()?['selectedLanguage'] ?? '').toString().trim();
 
             if (selectedLanguage.isNotEmpty) {
-              await prefsLocal.setString('language_selected_flag_$userId', selectedLanguage);
-              if (mounted) Navigator.of(context).pushReplacementNamed('/home');
+              await LanguageOnboardingService.saveSelectedLanguage(userId, selectedLanguage);
+              final levelCompleted = (doc.data()?['languageLevelCompleted'] ?? false) == true;
+              final timeCompleted = (doc.data()?['timeSelectionCompleted'] ?? false) == true;
+              final preparingCompleted = (doc.data()?['preparingScreenCompleted'] ?? false) == true;
+              if (mounted) {
+                Navigator.of(context).pushReplacementNamed(
+                  !levelCompleted
+                      ? '/language-level'
+                      : (!timeCompleted ? '/time-selection' : (preparingCompleted ? '/home' : '/preparing')),
+                  arguments: selectedLanguage,
+                );
+              }
             } else {
               if (mounted) Navigator.of(context).pushReplacementNamed('/language-selection');
             }

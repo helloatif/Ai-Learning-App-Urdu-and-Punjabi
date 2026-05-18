@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../themes/app_theme.dart';
 import '../../services/firebase_service.dart';
+import '../../services/language_onboarding_service.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/gamification_provider.dart';
 import '../../providers/learning_provider.dart';
@@ -122,13 +123,18 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   .doc(user.uid)
                   .get();
 
-              final selectedLanguage = (doc.data()?['selectedLanguage'] ?? '')
-                  .toString()
-                  .trim();
+              final selectedLanguage = (doc.data()?['selectedLanguage'] ?? '').toString().trim();
+              final levelCompleted = (doc.data()?['languageLevelCompleted'] ?? false) == true;
+              final timeCompleted = (doc.data()?['timeSelectionCompleted'] ?? false) == true;
+              final preparingCompleted = (doc.data()?['preparingScreenCompleted'] ?? false) == true;
 
               if (selectedLanguage.isNotEmpty && mounted) {
-                // Language already selected - go directly to home
-                Navigator.of(context).pushReplacementNamed('/home');
+                Navigator.of(context).pushReplacementNamed(
+                  !levelCompleted
+                      ? '/language-level'
+                      : (!timeCompleted ? '/time-selection' : (preparingCompleted ? '/home' : '/preparing')),
+                  arguments: selectedLanguage,
+                );
               } else if (mounted) {
                 // No language selected yet - go to language selection
                 Navigator.of(
@@ -193,13 +199,22 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 .doc(user.uid)
                 .get();
 
-            final selectedLanguage = (doc.data()?['selectedLanguage'] ?? '')
-                .toString()
-                .trim();
+            final selectedLanguage = (doc.data()?['selectedLanguage'] ?? '').toString().trim();
+            final levelCompleted = (doc.data()?['languageLevelCompleted'] ?? false) == true;
+            final timeCompleted = (doc.data()?['timeSelectionCompleted'] ?? false) == true;
+            final preparingCompleted = (doc.data()?['preparingScreenCompleted'] ?? false) == true;
 
             if (mounted) {
-              // Language selection exists separately — go to selection
-              Navigator.of(context).pushReplacementNamed('/language-selection');
+              if (selectedLanguage.isEmpty) {
+                Navigator.of(context).pushReplacementNamed('/language-selection');
+              } else {
+                Navigator.of(context).pushReplacementNamed(
+                  !levelCompleted
+                      ? '/language-level'
+                      : (!timeCompleted ? '/time-selection' : (preparingCompleted ? '/home' : '/preparing')),
+                  arguments: selectedLanguage,
+                );
+              }
             }
           } catch (e) {
             if (mounted) {

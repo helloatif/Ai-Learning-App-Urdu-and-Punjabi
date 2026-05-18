@@ -17,8 +17,12 @@ import 'providers/gamification_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/adaptive_learning_provider.dart';
 import 'screens/learning/language_selection_screen.dart';
+import 'screens/learning/language_level_screen.dart';
+import 'screens/learning/time_selection_screen.dart';
+import 'screens/learning/preparing_screen.dart';
 import 'services/adaptive_quiz_service.dart';
 import 'services/firebase_service.dart';
+import 'services/language_onboarding_service.dart';
 import 'themes/app_theme.dart';
 import 'screens/splash_screen.dart';
 
@@ -117,6 +121,20 @@ class MyApp extends StatelessWidget {
                 case '/language-selection':
                   page = const LanguageSelectionScreen();
                   break;
+                case '/language-level':
+                  final selectedLanguage = (settings.arguments as String?) ?? 'urdu';
+                  page = LanguageLevelScreen(
+                    languageCode: selectedLanguage,
+                    languageName: LanguageOnboardingService.displayLanguageName(selectedLanguage),
+                    mascotAsset: 'assets/icons/caticon.png',
+                  );
+                  break;
+                case '/time-selection':
+                  page = const TimeSelectionScreen();
+                  break;
+                case '/preparing':
+                  page = const PreparingScreen();
+                  break;
                 case '/home':
                   page = const HomeScreen();
                   break;
@@ -156,6 +174,17 @@ class MyApp extends StatelessWidget {
               '/email-verification': (context) =>
                   const EmailVerificationScreen(),
                 '/language-selection': (context) => const LanguageSelectionScreen(),
+                '/language-level': (context) {
+                  final selectedLanguage =
+                      (ModalRoute.of(context)?.settings.arguments as String?) ?? 'urdu';
+                  return LanguageLevelScreen(
+                    languageCode: selectedLanguage,
+                    languageName: LanguageOnboardingService.displayLanguageName(selectedLanguage),
+                    mascotAsset: 'assets/icons/caticon.png',
+                  );
+                },
+              '/time-selection': (context) => const TimeSelectionScreen(),
+              '/preparing': (context) => const PreparingScreen(),
               '/home': (context) => const HomeScreen(),
               '/ai-assistant': (context) => const AIAssistantScreen(),
             },

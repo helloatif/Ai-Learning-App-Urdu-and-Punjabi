@@ -78,8 +78,29 @@ class CongratulationsScreen extends StatelessWidget {
                     try {
                       final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
                       final selectedLanguage = (doc.data()?['selectedLanguage'] ?? '').toString().trim();
+                      final levelCompleted = (doc.data()?['languageLevelCompleted'] ?? false) == true;
+                      final timeCompleted = (doc.data()?['timeSelectionCompleted'] ?? false) == true;
+                      final preparingCompleted = (doc.data()?['preparingScreenCompleted'] ?? false) == true;
                       if (selectedLanguage.isEmpty) {
                         Navigator.of(context).pushReplacementNamed('/language-selection');
+                        return;
+                      }
+
+                      if (!levelCompleted) {
+                        Navigator.of(context).pushReplacementNamed(
+                          '/language-level',
+                          arguments: selectedLanguage,
+                        );
+                        return;
+                      }
+
+                      if (!timeCompleted) {
+                        Navigator.of(context).pushReplacementNamed('/time-selection');
+                        return;
+                      }
+
+                      if (!preparingCompleted) {
+                        Navigator.of(context).pushReplacementNamed('/preparing');
                         return;
                       }
                     } catch (e) {
