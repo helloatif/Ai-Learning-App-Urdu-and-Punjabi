@@ -410,13 +410,33 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
     }
 
     return Scaffold(
-      backgroundColor: AppTheme.lightGray,
+      backgroundColor: const Color(0xFFF4F7FB),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: AppTheme.textDark),
-          onPressed: () => _showExitDialog(),
+        toolbarHeight: 72,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: InkWell(
+            onTap: _showExitDialog,
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.close, color: AppTheme.textDark, size: 20),
+            ),
+          ),
         ),
         title: Text(
           'Chapter Quiz',
@@ -426,17 +446,47 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
           ),
         ),
         centerTitle: true,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Text(
+                widget.chapter.titleEnglish,
+                style: const TextStyle(
+                  color: AppTheme.textDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
           children: [
             // Progress indicator
-            _buildProgressIndicator(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: _buildProgressIndicator(),
+            ),
 
             // Question content
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: _buildQuestionCard(),
               ),
             ),
@@ -451,7 +501,18 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
 
   Widget _buildProgressIndicator() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Column(
         children: [
           Row(
@@ -461,7 +522,7 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
                 'Question ${_currentQuestionIndex + 1} of ${_questions.length}',
                 style: const TextStyle(
                   color: AppTheme.textDark,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               _buildQuestionTypeChip(),
@@ -470,10 +531,10 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
           const SizedBox(height: 8),
           LinearProgressIndicator(
             value: (_currentQuestionIndex + 1) / _questions.length,
-            backgroundColor: AppTheme.textDark.withOpacity(0.1),
-            valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.orange),
-            borderRadius: BorderRadius.circular(4),
-            minHeight: 8,
+            backgroundColor: const Color(0xFFE8EDF5),
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4F84FF)),
+            borderRadius: BorderRadius.circular(999),
+            minHeight: 10,
           ),
         ],
       ),
@@ -541,52 +602,74 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
       scale: _scaleAnimation,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: AppTheme.textDark.withOpacity(0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
+              color: AppTheme.textDark.withOpacity(0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Question text
-            Text(
-              question.question,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppTheme.textDark,
-                fontWeight: FontWeight.w600,
-                height: 1.5,
+            Container(
+              width: 56,
+              height: 6,
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8EDF5),
+                borderRadius: BorderRadius.circular(999),
               ),
-              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 18),
+
+            // Question text
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7FAFF),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Text(
+                question.question,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppTheme.textDark,
+                  fontWeight: FontWeight.w700,
+                  height: 1.45,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ),
 
             // Speak button for pronunciation help
             if (question.urduWord != null) ...[
               const SizedBox(height: 16),
               Center(
-                child: ElevatedButton.icon(
+                child: OutlinedButton.icon(
                   onPressed: () => _speakWord(question.urduWord!),
                   icon: const Icon(Icons.volume_up),
                   label: const Text('Listen'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.orange,
-                    foregroundColor: Colors.white,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF4F84FF),
+                    backgroundColor: const Color(0xFFF7FAFF),
+                    side: const BorderSide(color: Color(0xFF4F84FF), width: 1.4),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 14,
                     ),
                   ),
                 ),
               ),
             ],
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
             // Answer input based on type
             _buildAnswerInput(question),
@@ -624,25 +707,21 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
                   : Colors.grey.shade600,
             ),
             filled: true,
-            fillColor: Theme.of(context).brightness == Brightness.dark
-                ? AppTheme.darkSurfaceVariant
-                : AppTheme.lightGray,
+            fillColor: const Color(0xFFF7FAFF),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(18),
               borderSide: BorderSide(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey.shade600
-                    : Colors.grey.shade400,
+                color: const Color(0xFFD9E4FF),
               ),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(18),
               borderSide: const BorderSide(
-                color: AppTheme.primaryGreen,
+                color: Color(0xFF4F84FF),
                 width: 2,
               ),
             ),
-            contentPadding: const EdgeInsets.all(16),
+            contentPadding: const EdgeInsets.all(18),
           ),
           textAlign: TextAlign.center,
         );
@@ -685,10 +764,10 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: bgColor ?? Colors.white,
-                    borderRadius: BorderRadius.circular(12),
+                    color: bgColor ?? const Color(0xFFF7FAFF),
+                    borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: borderColor ?? AppTheme.textDark.withOpacity(0.2),
+                      color: borderColor ?? const Color(0xFFD9E4FF),
                       width: isSelected || (_isAnswerChecked && isCorrect)
                           ? 2
                           : 1,
@@ -730,14 +809,14 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
               decoration: BoxDecoration(
                 color: _isAnswerChecked
                     ? (question.isCorrect == true
-                          ? Colors.green.withOpacity(0.1)
-                          : Colors.red.withOpacity(0.1))
-                    : AppTheme.lightGray,
-                borderRadius: BorderRadius.circular(12),
+                          ? Colors.green.withOpacity(0.08)
+                          : Colors.red.withOpacity(0.08))
+                    : const Color(0xFFF7FAFF),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(
                   color: _isListening
-                      ? AppTheme.orange
-                      : AppTheme.textDark.withOpacity(0.2),
+                      ? const Color(0xFF4F84FF)
+                      : const Color(0xFFD9E4FF),
                   width: _isListening ? 2 : 1,
                 ),
               ),
@@ -881,7 +960,7 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
         : _answerController.text.isNotEmpty;
 
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -897,11 +976,11 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
             ? ElevatedButton(
                 onPressed: _nextQuestion,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.orange,
+                  backgroundColor: const Color(0xFF4F84FF),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   minimumSize: const Size(double.infinity, 56),
                 ),
@@ -919,12 +998,12 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
                 onPressed: canCheck ? _checkAnswer : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: canCheck
-                      ? AppTheme.textDark
-                      : AppTheme.textDark.withOpacity(0.3),
+                      ? const Color(0xFF111827)
+                      : const Color(0xFF111827).withOpacity(0.25),
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   minimumSize: const Size(double.infinity, 56),
                 ),

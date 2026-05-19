@@ -102,34 +102,46 @@ class _PreparingScreenState extends State<PreparingScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 20),
-                    // Icon
-                    Image.asset(
-                      'assets/icons/caticon.png',
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Image.asset(
-                          'assets/icons/app_icon1.png',
-                          width: 80,
-                          height: 80,
-                          fit: BoxFit.contain,
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    // Title
+                    // Cat icon + rounded message bubble
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: const Text(
-                        'We\'re preparing your\ncustom practice plan...',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF2B2E36),
-                          height: 1.2,
-                        ),
+                      padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Image.asset(
+                            'assets/icons/caticon.png',
+                            width: 62,
+                            height: 62,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Image.asset(
+                                'assets/icons/app_icon1.png',
+                                width: 62,
+                                height: 62,
+                                fit: BoxFit.contain,
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF5F8FC),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'We\'re preparing your\ncustom practice plan...',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  height: 1.25,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF2B2E36),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 32),

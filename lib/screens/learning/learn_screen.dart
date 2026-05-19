@@ -89,7 +89,7 @@ class _LearnScreenState extends State<LearnScreen>
             slivers: [
               // Animated Header
               SliverAppBar(
-                expandedHeight: 144,
+                expandedHeight: 156,
                 floating: false,
                 pinned: true,
                 backgroundColor: AppTheme.primaryGreen,
@@ -113,7 +113,7 @@ class _LearnScreenState extends State<LearnScreen>
                           top: false,
                           bottom: false,
                           child: Padding(
-                            padding: const EdgeInsets.all(16.0),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               mainAxisAlignment: MainAxisAlignment.end,
@@ -150,7 +150,7 @@ class _LearnScreenState extends State<LearnScreen>
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 4),
 
                                 // Avatar + Title
                                 Row(
@@ -183,7 +183,7 @@ class _LearnScreenState extends State<LearnScreen>
                                   ],
                                 ),
 
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 2),
 
                                 // Progress Bar
                                 FadeTransition(
