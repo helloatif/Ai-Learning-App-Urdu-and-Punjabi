@@ -24,7 +24,6 @@ import 'services/adaptive_quiz_service.dart';
 import 'services/firebase_service.dart';
 import 'services/language_onboarding_service.dart';
 import 'themes/app_theme.dart';
-import 'screens/splash_screen.dart';
 
 // Global flag for language selection
 const String _languageSelectedKey = 'language_selected_flag';
@@ -104,7 +103,7 @@ class MyApp extends StatelessWidget {
             themeMode: themeProvider.isDarkMode
                 ? ThemeMode.dark
                 : ThemeMode.light,
-            home: const SplashScreen(),
+            home: const _AuthGate(),
             onGenerateRoute: (settings) {
               // Add page transitions to all routes
               Widget page;

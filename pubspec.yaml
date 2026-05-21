@@ -104,6 +104,7 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/icons/app_icon1.png
+    - assets/icons/COMPLETION_NODE.png
     - assets/icons/loading_syllabus_icon.png
     - assets/data/
 

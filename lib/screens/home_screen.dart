@@ -7,6 +7,7 @@ import '../providers/user_provider.dart';
 import 'learning/learn_screen.dart';
 import 'learning/practice_screen.dart';
 import 'profile/profile_screen.dart';
+import 'settings/settings_screen.dart';
 import 'learning/leaderboard_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -17,15 +18,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  int _selectedIndex = 0;
+  int _currentIndex = 1;
   late AnimationController _streakPulse;
   late AnimationController _xpGlow;
 
   final List<Widget> _screens = [
+    const ProfileScreen(), // placeholder
     const LearnScreen(),
-    const PracticeScreen(),
     const LeaderboardScreen(),
-    const ProfileScreen(),
+    const PracticeScreen(),
+    const SettingsScreen(),
   ];
 
   @override
@@ -41,15 +43,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      if (userProvider.currentUser == null) {
-        userProvider.loadUserFromFirebase();
-      }
-      final gamification = Provider.of<GamificationProvider>(
-        context,
-        listen: false,
-      );
-      gamification.loadFromFirestore();
+      () async {
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
+        await userProvider.fetchUserData();
+
+        final gamification = Provider.of<GamificationProvider>(
+          context,
+          listen: false,
+        );
+        await gamification.loadFromFirestore();
+      }();
     });
   }
 
@@ -62,7 +65,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _onTabTap(int index) {
     HapticFeedback.lightImpact();
-    setState(() => _selectedIndex = index);
+    setState(() => _currentIndex = index);
   }
 
   @override
@@ -213,8 +216,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ),
               child: KeyedSubtree(
-                key: ValueKey(_selectedIndex),
-                child: _screens[_selectedIndex],
+                key: ValueKey(_currentIndex),
+                child: _screens[_currentIndex],
               ),
             ),
           ),
@@ -238,32 +241,58 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _NavItem(
-                  icon: Icons.home_rounded,
-                  label: 'Learn',
-                  isActive: _selectedIndex == 0,
+                  icon: Consumer<UserProvider>(
+                    builder: (context, userProvider, _) {
+                      final avatarPath = userProvider.selectedAvatarPath;
+                      if (avatarPath == null || avatarPath.isEmpty) {
+                        return const Icon(Icons.person_rounded);
+                      }
+
+                      return CircleAvatar(
+                        radius: 12,
+                        backgroundColor: Colors.transparent,
+                        backgroundImage: AssetImage(avatarPath),
+                      );
+                    },
+                  ),
+                  label: 'Profile',
+                  isActive: _currentIndex == 0,
                   onTap: () => _onTabTap(0),
+                  color: AppTheme.purple,
+                ),
+                _NavItem(
+                  icon: Image.asset('assets/icons/learnicon.png'),
+                  label: 'Learn',
+                  isActive: _currentIndex == 1,
+                  onTap: () => _onTabTap(1),
                   color: AppTheme.primaryGreen,
                 ),
                 _NavItem(
-                  icon: Icons.fitness_center_rounded,
-                  label: 'Practice',
-                  isActive: _selectedIndex == 1,
-                  onTap: () => _onTabTap(1),
-                  color: AppTheme.blue,
-                ),
-                _NavItem(
-                  icon: Icons.emoji_events_rounded,
-                  label: 'Ranks',
-                  isActive: _selectedIndex == 2,
+                  icon: const Icon(Icons.emoji_events_rounded),
+                  label: 'Leaderboard',
+                  isActive: _currentIndex == 2,
                   onTap: () => _onTabTap(2),
                   color: AppTheme.orange,
                 ),
                 _NavItem(
-                  icon: Icons.person_rounded,
-                  label: 'Profile',
-                  isActive: _selectedIndex == 3,
+                  icon: Image.asset('assets/icons/practiceicon.png'),
+                  label: 'Practice',
+                  isActive: _currentIndex == 3,
                   onTap: () => _onTabTap(3),
-                  color: AppTheme.purple,
+                  color: AppTheme.blue,
+                ),
+                _NavItem(
+                  icon: Image.asset(
+                    'assets/icons/settingnavbutton.png',
+                    width: 24,
+                    height: 24,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.settings),
+                  ),
+                  label: 'Settings',
+                  isActive: _currentIndex == 4,
+                  onTap: () => _onTabTap(4),
+                  color: Colors.grey,
                 ),
               ],
             ),
@@ -275,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 }
 
 class _NavItem extends StatelessWidget {
-  final IconData icon;
+  final Widget icon;
   final String label;
   final bool isActive;
   final VoidCallback onTap;
@@ -307,10 +336,16 @@ class _NavItem extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: isActive ? color : Colors.grey.shade400,
-              size: 24,
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: IconTheme(
+                data: IconThemeData(
+                  color: isActive ? color : Colors.grey.shade400,
+                  size: 24,
+                ),
+                child: icon,
+              ),
             ),
             if (isActive) ...[
               const SizedBox(width: 6),

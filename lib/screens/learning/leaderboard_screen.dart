@@ -129,6 +129,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                       isCurrentUser: user.id == currentUserId,
                       language: _normalize(user.selectedLanguage),
                       selectedAvatar: _normalize(user.selectedAvatar),
+                      selectedAvatarPath: user.selectedAvatarPath,
                       showLanguage: _selectedLanguageFilter == 'all',
                     );
                   },
@@ -196,6 +197,7 @@ class _LeaderboardCard extends StatelessWidget {
   final bool isCurrentUser;
   final String language;
   final String selectedAvatar;
+  final String selectedAvatarPath;
   final bool showLanguage;
 
   const _LeaderboardCard({
@@ -206,6 +208,7 @@ class _LeaderboardCard extends StatelessWidget {
     required this.isCurrentUser,
     required this.language,
     required this.selectedAvatar,
+    required this.selectedAvatarPath,
     required this.showLanguage,
   });
 
@@ -223,14 +226,21 @@ class _LeaderboardCard extends StatelessWidget {
       badgeColor = Colors.purple;
     }
 
-    // Show avatar image when user selected 'male' or 'female', otherwise show rank
+    // Show avatar image when we have a path or legacy male/female selection.
     Widget leading;
-    if (selectedAvatar == 'male' || selectedAvatar == 'female') {
-      final assetPath = selectedAvatar == 'female' ? 'assets/images/10491839.jpg' : 'assets/images/9440461.jpg';
+    final String avatarAssetPath = selectedAvatarPath.isNotEmpty
+        ? selectedAvatarPath
+        : (selectedAvatar == 'female'
+            ? 'assets/icons/AvatarGirl.png'
+            : selectedAvatar == 'male'
+                ? 'assets/icons/AvatarBoy.png'
+                : '');
+
+    if (avatarAssetPath.isNotEmpty) {
       leading = CircleAvatar(
         radius: 22,
         backgroundColor: _getRankColor(rank).withOpacity(0.2),
-        backgroundImage: AssetImage(assetPath),
+        backgroundImage: AssetImage(avatarAssetPath),
       );
     } else {
       leading = CircleAvatar(

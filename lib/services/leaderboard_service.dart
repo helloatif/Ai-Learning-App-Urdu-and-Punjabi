@@ -9,6 +9,7 @@ class LeaderboardUser {
   final int currentLevel;
   final String selectedLanguage;
   final String selectedAvatar;
+  final String selectedAvatarPath;
   final int rank;
 
   LeaderboardUser({
@@ -18,6 +19,7 @@ class LeaderboardUser {
     required this.currentLevel,
     required this.selectedLanguage,
     required this.selectedAvatar,
+    required this.selectedAvatarPath,
     required this.rank,
   });
 
@@ -29,6 +31,7 @@ class LeaderboardUser {
       currentLevel: (data['currentLevel'] ?? 1) as int,
       selectedLanguage: (data['selectedLanguage'] ?? '').toString().trim().toLowerCase(),
       selectedAvatar: (data['selectedAvatar'] ?? '').toString().trim().toLowerCase(),
+      selectedAvatarPath: (data['selectedAvatarPath'] ?? '').toString().trim(),
       rank: rank,
     );
   }
@@ -41,6 +44,7 @@ class LeaderboardUser {
       'currentLevel': currentLevel,
       'selectedLanguage': selectedLanguage,
       'selectedAvatar': selectedAvatar,
+      'selectedAvatarPath': selectedAvatarPath,
       'rank': rank,
     };
   }
@@ -52,6 +56,7 @@ class LeaderboardUser {
     int? currentLevel,
     String? selectedLanguage,
     String? selectedAvatar,
+    String? selectedAvatarPath,
     int? rank,
   }) {
     return LeaderboardUser(
@@ -61,6 +66,7 @@ class LeaderboardUser {
       currentLevel: currentLevel ?? this.currentLevel,
       selectedLanguage: selectedLanguage ?? this.selectedLanguage,
       selectedAvatar: selectedAvatar ?? this.selectedAvatar,
+      selectedAvatarPath: selectedAvatarPath ?? this.selectedAvatarPath,
       rank: rank ?? this.rank,
     );
   }
@@ -134,6 +140,7 @@ class LeaderboardService {
           currentLevel: leaderboard[i].currentLevel,
           selectedLanguage: leaderboard[i].selectedLanguage,
           selectedAvatar: leaderboard[i].selectedAvatar,
+          selectedAvatarPath: leaderboard[i].selectedAvatarPath,
           rank: i + 1,
         );
       }

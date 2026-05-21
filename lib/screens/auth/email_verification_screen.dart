@@ -24,6 +24,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   Timer? _timer;
   Timer? _cooldownTimer;
   bool _isCheckingVerification = false;
+  bool _isLoadingPostVerification = false;
   bool _canResend = false; // Start as false - email was just sent on signup
   int _resendCooldown = 60; // Start with 60 second cooldown
   bool _isResending = false;
@@ -61,6 +62,26 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     });
   }
 
+  Future<void> _loadUserDataAfterVerification(String userId) async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    await themeProvider.loadForUser(userId);
+
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    await userProvider.fetchUserData();
+
+    final gamificationProvider = Provider.of<GamificationProvider>(
+      context,
+      listen: false,
+    );
+    await gamificationProvider.loadFromFirestore();
+
+    final learningProvider = Provider.of<LearningProvider>(
+      context,
+      listen: false,
+    );
+    await learningProvider.loadProgressFromFirestore();
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -82,6 +103,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
           // Email verified! Check if user has selected a language
           _timer?.cancel();
           if (mounted) {
+            setState(() {
+              _isLoadingPostVerification = true;
+            });
+
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('✓ Email verified successfully!'),
@@ -91,32 +116,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
             // Check if user has already selected a language
             try {
-              final themeProvider = Provider.of<ThemeProvider>(
-                context,
-                listen: false,
-              );
-              await themeProvider.loadForUser(user.uid);
-
-              // Load user data into provider first
-              final userProvider = Provider.of<UserProvider>(
-                context,
-                listen: false,
-              );
-              await userProvider.loadUserFromFirebase();
-
-              // Load gamification data (points, level, streak, etc.)
-              final gamificationProvider = Provider.of<GamificationProvider>(
-                context,
-                listen: false,
-              );
-              await gamificationProvider.loadFromFirestore();
-
-              // Load learning progress (chapter completions, quiz scores)
-              final learningProvider = Provider.of<LearningProvider>(
-                context,
-                listen: false,
-              );
-              await learningProvider.loadProgressFromFirestore();
+              await _loadUserDataAfterVerification(user.uid);
 
               final doc = await FirebaseFirestore.instance
                   .collection('users')
@@ -147,6 +147,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 Navigator.of(
                   context,
                 ).pushReplacementNamed('/language-selection');
+              }
+            } finally {
+              if (mounted) {
+                setState(() {
+                  _isLoadingPostVerification = false;
+                });
               }
             }
           }
@@ -180,19 +186,11 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
       if (user.emailVerified) {
         // Already verified, check language selection and navigate accordingly
         if (mounted) {
+          setState(() {
+            _isLoadingPostVerification = true;
+          });
           try {
-            final themeProvider = Provider.of<ThemeProvider>(
-              context,
-              listen: false,
-            );
-            await themeProvider.loadForUser(user.uid);
-
-            // Load user data into provider first
-            final userProvider = Provider.of<UserProvider>(
-              context,
-              listen: false,
-            );
-            await userProvider.loadUserFromFirebase();
+            await _loadUserDataAfterVerification(user.uid);
 
             final doc = await FirebaseFirestore.instance
                 .collection('users')
@@ -219,6 +217,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
           } catch (e) {
             if (mounted) {
               Navigator.of(context).pushReplacementNamed('/home');
+            }
+          } finally {
+            if (mounted) {
+              setState(() {
+                _isLoadingPostVerification = false;
+              });
             }
           }
         }
@@ -316,12 +320,14 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
+      body: Stack(
+        children: [
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
               SizedBox(
                 height: 220,
                 child: Image.asset(
@@ -414,10 +420,23 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                     ),
                 textAlign: TextAlign.center,
               ),
-            ],
+                ],
+              ),
+            ),
           ),
+          if (_isLoadingPostVerification || _isCheckingVerification)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.12),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: AppTheme.primaryGreen,
+                  ),
+                ),
+              ),
+            ),
+        ],
         ),
-      ),
     );
   }
 }

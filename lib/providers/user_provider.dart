@@ -29,11 +29,26 @@ class UserProvider extends ChangeNotifier {
   User? _currentUser;
   bool _isAuthenticated = false;
   String? _selectedAvatar;
+  String? _selectedAvatarPath;
 
   User? get currentUser => _currentUser;
   User? get user => _currentUser;
   bool get isAuthenticated => _isAuthenticated;
   String? get selectedAvatar => _selectedAvatar;
+  String? get selectedAvatarPath => _selectedAvatarPath;
+
+  String? _avatarPathForSelection(String? selection) {
+    if (selection == 'male') return 'assets/icons/AvatarBoy.png';
+    if (selection == 'female') return 'assets/icons/AvatarGirl.png';
+    return null;
+  }
+
+  String? _selectionForAvatarPath(String? path) {
+    final normalized = path?.trim();
+    if (normalized == 'assets/icons/AvatarBoy.png') return 'male';
+    if (normalized == 'assets/icons/AvatarGirl.png') return 'female';
+    return null;
+  }
 
   String _avatarPrefsKey(String userId) => 'selected_avatar_$userId';
 
@@ -45,18 +60,31 @@ class UserProvider extends ChangeNotifier {
     final saved = prefs.getString(_avatarPrefsKey(firebaseUser.uid));
 
     String? normalized;
+    String? normalizedPath;
     if (saved == 'male' || saved == 'female') {
       normalized = saved;
+      normalizedPath = _avatarPathForSelection(saved);
     } else {
       try {
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
             .doc(firebaseUser.uid)
             .get();
-        final firestoreValue = (userDoc.data()?['selectedAvatar'] ?? '')
+        final data = userDoc.data();
+        final firestorePath = (data?['selectedAvatarPath'] ?? '')
             .toString()
             .trim();
-        if (firestoreValue == 'male' || firestoreValue == 'female') {
+        final firestoreValue = (data?['selectedAvatar'] ?? '')
+            .toString()
+            .trim();
+        normalizedPath = firestorePath.isNotEmpty
+            ? firestorePath
+            : _avatarPathForSelection(firestoreValue);
+        normalized = _selectionForAvatarPath(normalizedPath) ??
+            (firestoreValue == 'male' || firestoreValue == 'female'
+                ? firestoreValue
+                : null);
+        if (normalized == null && firestoreValue.isNotEmpty) {
           normalized = firestoreValue;
         }
       } catch (e) {
@@ -64,18 +92,29 @@ class UserProvider extends ChangeNotifier {
       }
     }
 
-    if (_selectedAvatar == normalized) return;
+    if (_selectedAvatar == normalized && _selectedAvatarPath == normalizedPath) return;
 
     _selectedAvatar = normalized;
-    await _syncLeaderboardAvatarOnly(firebaseUser.uid, normalized ?? '');
+    _selectedAvatarPath = normalizedPath;
+    await _syncLeaderboardAvatarOnly(
+      firebaseUser.uid,
+      normalized ?? '',
+      normalizedPath ?? '',
+    );
     notifyListeners();
   }
 
   Future<void> setSelectedAvatar(String? value) async {
+    final path = _avatarPathForSelection(value);
+    await setSelectedAvatarPath(path);
+  }
+
+  Future<void> setSelectedAvatarPath(String? path) async {
     final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
     if (firebaseUser == null) return;
 
-    final normalized = value == 'male' || value == 'female' ? value : null;
+    final normalizedPath = path != null && path.trim().isNotEmpty ? path.trim() : null;
+    final normalized = _selectionForAvatarPath(normalizedPath);
     final prefs = await SharedPreferences.getInstance();
 
     if (normalized == null) {
@@ -86,15 +125,18 @@ class UserProvider extends ChangeNotifier {
 
     await FirebaseFirestore.instance.collection('users').doc(firebaseUser.uid).set({
       'selectedAvatar': normalized ?? '',
+      'selectedAvatarPath': normalizedPath ?? '',
     }, SetOptions(merge: true));
 
     await FirebaseFirestore.instance.collection('leaderboard').doc(firebaseUser.uid).set({
       'selectedAvatar': normalized ?? '',
+      'selectedAvatarPath': normalizedPath ?? '',
     }, SetOptions(merge: true));
 
-    if (_selectedAvatar == normalized) return;
+    if (_selectedAvatar == normalized && _selectedAvatarPath == normalizedPath) return;
 
     _selectedAvatar = normalized;
+    _selectedAvatarPath = normalizedPath;
     notifyListeners();
   }
 
@@ -190,6 +232,10 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> fetchUserData() async {
+    await loadUserFromFirebase();
+  }
+
   Future<void> setSelectedLanguage(String language) async {
     final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
     if (firebaseUser == null) {
@@ -256,6 +302,8 @@ class UserProvider extends ChangeNotifier {
   void logout() {
     _currentUser = null;
     _isAuthenticated = false;
+    _selectedAvatar = null;
+    _selectedAvatarPath = null;
     notifyListeners();
   }
 
@@ -274,16 +322,22 @@ class UserProvider extends ChangeNotifier {
         'currentLevel': currentLevel,
         'selectedLanguage': selectedLanguage.toString().trim().toLowerCase(),
         'selectedAvatar': selectedAvatar,
+        'selectedAvatarPath': _selectedAvatarPath ?? '',
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('❌ Failed to sync leaderboard entry: $e');
     }
   }
 
-  Future<void> _syncLeaderboardAvatarOnly(String userId, String selectedAvatar) async {
+  Future<void> _syncLeaderboardAvatarOnly(
+    String userId,
+    String selectedAvatar,
+    String selectedAvatarPath,
+  ) async {
     try {
       await FirebaseFirestore.instance.collection('leaderboard').doc(userId).set({
         'selectedAvatar': selectedAvatar,
+        'selectedAvatarPath': selectedAvatarPath,
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('❌ Failed to sync leaderboard avatar: $e');

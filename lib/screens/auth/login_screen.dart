@@ -67,6 +67,26 @@ class _LoginScreenState extends State<LoginScreen>
     });
   }
 
+  Future<void> _loadUserDataAfterSignIn(String userId) async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    await themeProvider.loadForUser(userId);
+
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    await userProvider.fetchUserData();
+
+    final gamificationProvider = Provider.of<GamificationProvider>(
+      context,
+      listen: false,
+    );
+    await gamificationProvider.loadFromFirestore();
+
+    final learningProvider = Provider.of<LearningProvider>(
+      context,
+      listen: false,
+    );
+    await learningProvider.loadProgressFromFirestore();
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
@@ -104,18 +124,15 @@ class _LoginScreenState extends State<LoginScreen>
         _passwordController.text,
       );
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-
       if (userId != null && mounted) {
         final user = FirebaseService.getCurrentUser();
 
         if (user == null) {
           // Proceed anyway
           if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('✓ Login successful!'),
@@ -130,6 +147,9 @@ class _LoginScreenState extends State<LoginScreen>
 
         if (!user.emailVerified) {
           if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('🚫 Please verify your email first!'),
@@ -161,31 +181,8 @@ class _LoginScreenState extends State<LoginScreen>
             ),
           );
 
-          // Load user data
           try {
-            final themeProvider = Provider.of<ThemeProvider>(
-              context,
-              listen: false,
-            );
-            await themeProvider.loadForUser(userId);
-
-            final userProvider = Provider.of<UserProvider>(
-              context,
-              listen: false,
-            );
-            await userProvider.loadUserFromFirebase();
-
-            final gamificationProvider = Provider.of<GamificationProvider>(
-              context,
-              listen: false,
-            );
-            await gamificationProvider.loadFromFirestore();
-
-            final learningProvider = Provider.of<LearningProvider>(
-              context,
-              listen: false,
-            );
-            await learningProvider.loadProgressFromFirestore();
+            await _loadUserDataAfterSignIn(userId);
 
             // Check language selection and one-time level onboarding
             final localLanguage = await LanguageOnboardingService.getSelectedLanguage(userId);
@@ -199,6 +196,9 @@ class _LoginScreenState extends State<LoginScreen>
                   ? await LanguageOnboardingService.isPreparingScreenCompleted(userId)
                   : false;
               if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
                 Navigator.of(context).pushReplacementNamed(
                   !levelCompleted
                       ? '/language-level'
@@ -228,6 +228,9 @@ class _LoginScreenState extends State<LoginScreen>
               });
 
               if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(
                     builder: (_) => CongratulationsScreen(userId: userId),
@@ -245,6 +248,9 @@ class _LoginScreenState extends State<LoginScreen>
               final timeCompleted = (doc.data()?['timeSelectionCompleted'] ?? false) == true;
               final preparingCompleted = (doc.data()?['preparingScreenCompleted'] ?? false) == true;
               if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
                 Navigator.of(context).pushReplacementNamed(
                   !levelCompleted
                       ? '/language-level'
@@ -253,11 +259,21 @@ class _LoginScreenState extends State<LoginScreen>
                 );
               }
             } else {
-              if (mounted) Navigator.of(context).pushReplacementNamed('/language-selection');
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
+                Navigator.of(context).pushReplacementNamed('/language-selection');
+              }
             }
           } catch (e) {
             print('⚠️ Login: Error checking language: $e');
-            if (mounted) Navigator.of(context).pushReplacementNamed('/language-selection');
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+              Navigator.of(context).pushReplacementNamed('/language-selection');
+            }
           }
         }
       } else if (mounted) {

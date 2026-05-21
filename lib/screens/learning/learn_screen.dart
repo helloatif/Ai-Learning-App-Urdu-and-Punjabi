@@ -330,12 +330,13 @@ class _LearnScreenState extends State<LearnScreen>
   }
 
   void _navigateToChapter(BuildContext context, ChapterModel chapter) {
-    Navigator.of(context).push(
+        Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             ChapterLessonsPathScreen(
               chapterId: chapter.id,
               chapterTitle: chapter.titleEnglish,
+              language: chapter.language,
             ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(1.0, 0.0);
