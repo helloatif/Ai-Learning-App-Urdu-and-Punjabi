@@ -176,36 +176,39 @@ class FirebaseService {
       }
 
       // Ensure user document exists for leaderboard/profile visibility.
-      _firestore
-          .collection('users')
-          .doc(user.uid)
-          .set({
-            'email': user.email ?? email,
-            'displayName': (user.displayName ?? '').trim().isNotEmpty
-                ? user.displayName
-                : (user.email ?? email).split('@')[0],
-            'emailVerified': true,
-            'lastLoginAt': FieldValue.serverTimestamp(),
-            'createdAt': FieldValue.serverTimestamp(),
-            'selectedLanguage': '',
-            'selectedAvatar': '',
-            'totalXP': 0,
-            'totalPoints': 0,
-            'currentLevel': 1,
-          }, SetOptions(merge: true))
-          .catchError((e) => print('Firestore update error: $e'));
+      try {
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .set({
+              'email': user.email ?? email,
+              'displayName': (user.displayName ?? '').trim().isNotEmpty
+                  ? user.displayName
+                  : (user.email ?? email).split('@')[0],
+              'emailVerified': true,
+              'lastLoginAt': FieldValue.serverTimestamp(),
+              'createdAt': FieldValue.serverTimestamp(),
+              'selectedLanguage': '',
+              'selectedAvatar': '',
+              'totalXP': 0,
+              'totalPoints': 0,
+              'currentLevel': 1,
+            }, SetOptions(merge: true));
 
-      _firestore.collection('leaderboard').doc(user.uid).set({
-        'displayName': (user.displayName ?? '').trim().isNotEmpty
-            ? user.displayName
-            : (user.email ?? email).split('@')[0],
-        'totalXP': 0,
-        'currentLevel': 1,
-        'selectedLanguage': '',
-        'selectedAvatar': '',
-      }, SetOptions(merge: true)).catchError(
-        (e) => print('Leaderboard update error: $e'),
-      );
+        await _firestore.collection('leaderboard').doc(user.uid).set({
+          'displayName': (user.displayName ?? '').trim().isNotEmpty
+              ? user.displayName
+              : (user.email ?? email).split('@')[0],
+          'totalXP': 0,
+          'currentLevel': 1,
+          'selectedLanguage': '',
+          'selectedAvatar': '',
+        }, SetOptions(merge: true));
+      } catch (e) {
+        // Log but don't block sign-in; callers will attempt to load data
+        // and can retry/repair if needed.
+        print('⚠️ Firestore update error during signIn: $e');
+      }
 
       print('✅ User signed in successfully: ${user.uid}');
       return user.uid;
