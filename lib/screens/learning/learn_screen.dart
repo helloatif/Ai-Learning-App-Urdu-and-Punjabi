@@ -5,6 +5,7 @@ import '../../providers/learning_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/chapter_service.dart';
 import 'chapter_lessons_screen.dart';
+import 'chapter_lessons_path_screen.dart';
 
 /// Main Learn Screen with Chapter-wise Learning Path
 class LearnScreen extends StatefulWidget {
@@ -332,7 +333,10 @@ class _LearnScreenState extends State<LearnScreen>
     Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            ChapterLessonsScreen(chapter: chapter),
+            ChapterLessonsPathScreen(
+              chapterId: chapter.id,
+              chapterTitle: chapter.titleEnglish,
+            ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           const begin = Offset(1.0, 0.0);
           const end = Offset.zero;
