@@ -67,19 +67,19 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     await themeProvider.loadForUser(userId);
 
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    await userProvider.fetchUserData();
+    await userProvider.fetchUserData(userId: userId);
 
     final gamificationProvider = Provider.of<GamificationProvider>(
       context,
       listen: false,
     );
-    await gamificationProvider.loadFromFirestore();
+    await gamificationProvider.loadFromFirestore(userId: userId);
 
     final learningProvider = Provider.of<LearningProvider>(
       context,
       listen: false,
     );
-    await learningProvider.loadProgressFromFirestore();
+    await learningProvider.loadProgressFromFirestore(userId: userId);
   }
 
   @override

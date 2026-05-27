@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../themes/app_theme.dart';
 import '../../providers/user_provider.dart';
@@ -26,6 +27,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     final userProvider = Provider.of<UserProvider>(context);
     final currentUserId = userProvider.currentUser?.id ?? '';
 
+    // Set status-bar color based on user's selected language (Urdu/Punjabi)
+    final selectedLang = userProvider.currentUser?.selectedLanguage?.trim().toLowerCase() ?? 'urdu';
+    final Color _statusBarColor = (selectedLang == 'punjabi') ? const Color(0xFFF06292) : AppTheme.blue;
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: _statusBarColor,
+      statusBarIconBrightness: Brightness.light,
+      statusBarBrightness: Brightness.dark,
+    ));
+
     return Scaffold(
       body: Column(
         children: [
@@ -33,7 +43,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           Container(
             width: double.infinity,
             decoration: const BoxDecoration(
-              color: AppTheme.primaryGreen,
+              color: Color(0xFFF06292),
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(32),
                 bottomRight: Radius.circular(32),
@@ -44,7 +54,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                   children: [
-                    const Icon(Icons.emoji_events, size: 60, color: Colors.amber),
+                    SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: Image.asset(
+                        'assets/icons/3dicons-crown-dynamic-color.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     const Text(
                       'Leaderboard',
@@ -88,7 +105,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
               stream: LeaderboardService.streamLeaderboard(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen));
+                  return const Center(child: CircularProgressIndicator(color: Color(0xFFF06292)));
                 }
 
                 if (snapshot.hasError) {
@@ -102,8 +119,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                 final filter = _normalize(_selectedLanguageFilter);
                 if (filter != 'all') {
                   users = users.where((u) {
-                    print('Checking user: ${u.displayName}, Lang: "${u.selectedLanguage}"');
-                    return u.selectedLanguage.trim().toLowerCase() == filter;
+                    final userLang = _normalize(u.selectedLanguage);
+                    print('Checking user: ${u.displayName}, Lang: "${userLang}"');
+                    return userLang == filter;
                   }).toList();
                 }
 
@@ -155,7 +173,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? AppTheme.primaryGreen : AppTheme.white,
+            color: isSelected ? const Color(0xFFF06292) : AppTheme.white,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -168,7 +186,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.people_outline, size: 64, color: AppTheme.primaryGreen),
+          const Icon(Icons.people_outline, size: 64, color: Color(0xFFF06292)),
           const SizedBox(height: 16),
           const Text('No users yet', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
@@ -254,14 +272,14 @@ class _LeaderboardCard extends StatelessWidget {
       elevation: isCurrentUser ? 4 : 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: isCurrentUser ? const BorderSide(color: AppTheme.primaryGreen, width: 2) : BorderSide.none,
+        side: isCurrentUser ? const BorderSide(color: Color(0xFFF06292), width: 2) : BorderSide.none,
       ),
       child: ListTile(
         leading: leading,
         title: Row(
           children: [
             Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
-            if (isCurrentUser) _buildBadge('You', AppTheme.primaryGreen),
+            if (isCurrentUser) _buildBadge('You', const Color(0xFFF06292)),
             if (showLanguage && badgeText.isNotEmpty) ...[
               const SizedBox(width: 4),
               _buildBadge(badgeText, badgeColor),

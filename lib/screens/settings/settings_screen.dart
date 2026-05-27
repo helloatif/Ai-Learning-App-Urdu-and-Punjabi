@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../../themes/app_theme.dart';
 import '../../providers/user_provider.dart';
@@ -32,11 +33,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           listen: false,
         );
 
+        final userId = FirebaseAuth.instance.currentUser?.uid;
         await Future.wait([
-          if (userProvider.currentUser == null)
-            userProvider.loadUserFromFirebase(),
-          if (!gamificationProvider.isLoaded)
-            gamificationProvider.loadFromFirestore(),
+          userProvider.loadUserFromFirebase(userId: userId),
+          gamificationProvider.loadFromFirestore(userId: userId),
         ]);
       } catch (e) {
         debugPrint('⚠ Settings load error: $e');

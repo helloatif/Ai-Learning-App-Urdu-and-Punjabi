@@ -683,17 +683,19 @@ class LearningProvider extends ChangeNotifier {
   Future<void> _saveProgressLocally(
     Map<String, List<int>> lessonsData,
     Map<String, double> quizScores,
+    {String? userId}
   ) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      final resolvedUserId = userId ?? user?.uid;
+      if (resolvedUserId == null) return;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
-        'chapterProgress_${user.uid}',
+        'chapterProgress_$resolvedUserId',
         jsonEncode(lessonsData),
       );
       await prefs.setString(
-        'chapterQuizScores_${user.uid}',
+        'chapterQuizScores_$resolvedUserId',
         jsonEncode(quizScores),
       );
       debugPrint('✓ Chapter progress cached locally');
@@ -703,10 +705,11 @@ class LearningProvider extends ChangeNotifier {
   }
 
   // Load user progress from SharedPreferences (instant) then Firestore (authoritative)
-  Future<void> loadProgressFromFirestore() async {
+  Future<void> loadProgressFromFirestore({String? userId}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
+      final resolvedUserId = userId ?? user?.uid;
+      if (resolvedUserId == null) {
         debugPrint('⚠ Cannot load progress: No user logged in');
         return;
       }
@@ -714,8 +717,8 @@ class LearningProvider extends ChangeNotifier {
       // --- Step 1: load from local cache immediately so UI responds at once ---
       try {
         final prefs = await SharedPreferences.getInstance();
-        final localJson = prefs.getString('chapterProgress_${user.uid}');
-        final localQuizJson = prefs.getString('chapterQuizScores_${user.uid}');
+        final localJson = prefs.getString('chapterProgress_$resolvedUserId');
+        final localQuizJson = prefs.getString('chapterQuizScores_$resolvedUserId');
 
         if (localJson != null) {
           final localData = jsonDecode(localJson) as Map<String, dynamic>;
@@ -737,7 +740,7 @@ class LearningProvider extends ChangeNotifier {
       // --- Step 2: fetch from Firestore and overwrite with authoritative data ---
       final doc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(resolvedUserId)
           .get()
           .timeout(
             const Duration(seconds: 5),
@@ -766,7 +769,11 @@ class LearningProvider extends ChangeNotifier {
         final normalizedLessons = _completedLessonsPerChapter.map(
           (key, value) => MapEntry(key, value.toList()),
         );
-        await _saveProgressLocally(normalizedLessons, _chapterQuizScores);
+        await _saveProgressLocally(
+          normalizedLessons,
+          _chapterQuizScores,
+          userId: resolvedUserId,
+        );
 
         debugPrint(
           '✓ Chapter progress loaded from Firestore: $_completedLessonsPerChapter',

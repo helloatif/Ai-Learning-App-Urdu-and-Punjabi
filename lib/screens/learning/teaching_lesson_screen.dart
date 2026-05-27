@@ -10,6 +10,7 @@ import '../../data/vocabulary_data.dart';
 import '../../providers/learning_provider.dart';
 import '../../providers/gamification_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../widgets/bottom_navigation.dart';
 
 /// Clean lesson screen - Teaching only with TTS (no quizzes, no user input)
 /// User learns 25 words/sentences per lesson
@@ -31,6 +32,10 @@ class TeachingLessonScreen extends StatefulWidget {
 
 class _TeachingLessonScreenState extends State<TeachingLessonScreen>
     with TickerProviderStateMixin {
+  static const Color _lavenderPrimary = Color(0xFFCE82FF);
+  static const Color _lavenderSecondary = Color(0xFFF3E6FF);
+  static const Color _lavenderTint = Color(0xFFFBF6FF);
+
   int _currentWordIndex = 0;
   bool _showTranslation = false;
   bool _isSpeaking = false;
@@ -119,7 +124,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
   }
 
   VocabWord get _currentWord => _lessonWords[_currentWordIndex];
-  double get _progress => (_currentWordIndex + 1) / _lessonWords.length;
+  double get _progress => _lessonWords.isEmpty ? 0 : (_currentWordIndex + 1) / _lessonWords.length;
   bool get _isLastWord => _currentWordIndex >= _lessonWords.length - 1;
 
   Future<void> _speakWord() async {
@@ -223,7 +228,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
 
   Widget _buildCompletionOverlay() {
     return Container(
-      color: Colors.black54,
+      color: _lavenderPrimary.withOpacity(0.78),
       child: Center(
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 32),
@@ -244,7 +249,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: AppTheme.primaryGreen.withOpacity(0.2),
+                    color: _lavenderPrimary.withOpacity(0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Center(
@@ -260,7 +265,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
               const SizedBox(height: 12),
               Text(
                 'You learned ${_lessonWords.length} words',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 16, color: Colors.white70),
               ),
               const SizedBox(height: 8),
               Container(
@@ -269,7 +274,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: (_xpWasAwarded ? AppTheme.orange : Colors.grey)
+                    color: (_xpWasAwarded ? _lavenderPrimary : Colors.grey)
                       .withOpacity(0.15),
                   borderRadius: BorderRadius.circular(20),
                 ),
@@ -278,14 +283,14 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                   children: [
                     Icon(
                       _xpWasAwarded ? Icons.bolt : Icons.check_circle,
-                      color: _xpWasAwarded ? AppTheme.orange : Colors.grey,
+                      color: _xpWasAwarded ? _lavenderPrimary : Colors.grey,
                       size: 20,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       _xpWasAwarded ? '+10 XP' : 'Already completed',
                       style: TextStyle(
-                        color: _xpWasAwarded ? AppTheme.orange : Colors.grey,
+                        color: _xpWasAwarded ? _lavenderPrimary : Colors.grey,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                       ),
@@ -302,7 +307,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                     Navigator.pop(context, true);
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: widget.chapter.color,
+                    backgroundColor: _lavenderPrimary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
@@ -327,7 +332,34 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (_isLoadingMlWords && _lessonWords.isEmpty) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                _buildTopBar(),
+                const SizedBox(height: 24),
+                _buildProgressIndicator(),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      'Loading lesson steps...',
+                      style: TextStyle(
+                        color: _lavenderPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
     if (_lessonWords.isEmpty) {
@@ -364,9 +396,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
     }
 
     return Scaffold(
-      backgroundColor: isDark
-          ? AppTheme.darkBackground
-          : const Color(0xFFF5F7FA),
+      backgroundColor: Colors.white,
       body: Stack(
         children: [
           SafeArea(
@@ -407,53 +437,66 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
           if (_lessonDone) _buildCompletionOverlay(),
         ],
       ),
+      bottomNavigationBar: const AppBottomNavigation(),
     );
   }
 
   Widget _buildTopBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final userProvider = Provider.of<UserProvider>(context);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: () => _showExitDialog(),
-            icon: Icon(
-              Icons.close,
-              color: isDark
-                  ? AppTheme.textLight.withOpacity(0.78)
-                  : Colors.black54,
-            ),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.only(
+          top: MediaQuery.of(context).padding.top + 8,
+          left: 12,
+          right: 12,
+          bottom: 12,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              _lavenderPrimary,
+              _lavenderSecondary,
+            ],
           ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.lesson.titleEnglish,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  'Lesson ${widget.lessonIndex + 1} • ${_currentWordIndex + 1}/${_lessonWords.length}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: isDark
-                        ? AppTheme.textLight.withOpacity(0.72)
-                        : Colors.grey.shade600,
-                  ),
-                ),
-              ],
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: () => _showExitDialog(),
+              icon: const Icon(Icons.close, color: Colors.white),
             ),
-          ),
-          const SizedBox(width: 8),
-          _buildTopBarAvatar(userProvider),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.lesson.titleEnglish,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'Lesson ${widget.lessonIndex + 1} • ${_currentWordIndex + 1}/${_lessonWords.length}',
+                    style: const TextStyle(fontSize: 12, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _buildTopBarAvatar(userProvider),
+          ],
+        ),
       ),
     );
   }
@@ -467,9 +510,9 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
         height: 40,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: AppTheme.primaryGreen.withOpacity(0.12),
+          color: _lavenderPrimary.withOpacity(0.12),
         ),
-        child: const Icon(Icons.face, size: 22, color: AppTheme.primaryGreen),
+        child: const Icon(Icons.face, size: 22, color: _lavenderPrimary),
       );
     }
 
@@ -487,8 +530,8 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
           fit: BoxFit.cover,
           alignment: Alignment.topCenter,
           errorBuilder: (_, __, ___) => Container(
-            color: AppTheme.primaryGreen.withOpacity(0.12),
-            child: const Icon(Icons.face, size: 22, color: AppTheme.primaryGreen),
+            color: _lavenderPrimary.withOpacity(0.12),
+            child: const Icon(Icons.face, size: 22, color: _lavenderPrimary),
           ),
         ),
       ),
@@ -496,21 +539,8 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
   }
 
   Widget _buildProgressIndicator() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: LinearProgressIndicator(
-            value: _progress,
-            backgroundColor: isDark
-                ? AppTheme.darkSurfaceVariant
-                : Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation(widget.chapter.color),
-            minHeight: 8,
-          ),
-        ),
-        const SizedBox(height: 8),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -525,10 +555,10 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                 height: 6,
                 decoration: BoxDecoration(
                   color: isActive
-                      ? widget.chapter.color
+                      ? _lavenderPrimary
                       : isPast
-                      ? widget.chapter.color.withOpacity(0.5)
-                      : Colors.grey.shade300,
+                      ? _lavenderPrimary.withOpacity(0.5)
+                      : _lavenderSecondary,
                   borderRadius: BorderRadius.circular(3),
                 ),
               );
@@ -557,14 +587,14 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              widget.chapter.color,
-              widget.chapter.color.withOpacity(0.8),
+              _lavenderPrimary,
+              _lavenderSecondary,
             ],
           ),
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: widget.chapter.color.withOpacity(0.3),
+              color: _lavenderPrimary.withOpacity(0.2),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -587,7 +617,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
+                color: _lavenderPrimary.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
@@ -615,12 +645,10 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
             decoration: BoxDecoration(
-              color: _isSpeaking
-                  ? widget.chapter.color.withOpacity(0.1)
-                  : (isDark ? AppTheme.darkSurface : Colors.white),
+              color: _isSpeaking ? _lavenderTint : _lavenderPrimary,
               borderRadius: BorderRadius.circular(30),
               border: Border.all(
-                color: widget.chapter.color.withOpacity(
+                color: _lavenderPrimary.withOpacity(
                   _isSpeaking ? 0.5 + _pulseController.value * 0.3 : 0.3,
                 ),
                 width: 2,
@@ -637,7 +665,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
               children: [
                 Icon(
                   _isSpeaking ? Icons.volume_up : Icons.volume_up_outlined,
-                  color: widget.chapter.color,
+                  color: _isSpeaking ? _lavenderPrimary : Colors.white,
                   size: 28,
                 ),
                 const SizedBox(width: 12),
@@ -646,7 +674,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: widget.chapter.color,
+                    color: _isSpeaking ? _lavenderPrimary : Colors.white,
                   ),
                 ),
               ],
@@ -668,17 +696,15 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
         duration: const Duration(milliseconds: 300),
         width: double.infinity,
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
+          decoration: BoxDecoration(
           color: _showTranslation
-              ? widget.chapter.color.withOpacity(0.08)
-              : (isDark ? AppTheme.darkSurface : Colors.white),
+              ? _lavenderTint
+              : _lavenderPrimary,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: _showTranslation
-                ? widget.chapter.color.withOpacity(0.3)
-                : (isDark
-                      ? AppTheme.darkSurfaceVariant
-                      : Colors.grey.shade200),
+              ? _lavenderPrimary.withOpacity(0.25)
+              : _lavenderSecondary,
             width: 2,
           ),
         ),
@@ -689,7 +715,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
               children: [
                 Icon(
                   _showTranslation ? Icons.lightbulb : Icons.lightbulb_outline,
-                  color: _showTranslation ? AppTheme.orange : Colors.grey,
+                  color: _showTranslation ? _lavenderPrimary : Colors.grey,
                   size: 20,
                 ),
                 const SizedBox(width: 8),
@@ -700,7 +726,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                   style: TextStyle(
                     fontSize: 14,
                     color: _showTranslation
-                        ? widget.chapter.color
+                      ? _lavenderPrimary
                         : Colors.grey,
                     fontWeight: FontWeight.w500,
                   ),
@@ -710,15 +736,15 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
             const SizedBox(height: 12),
             AnimatedCrossFade(
               firstChild: Text(
-                '• • •',
-                style: TextStyle(fontSize: 24, color: Colors.grey.shade300),
-              ),
+                  '• • •',
+                  style: TextStyle(fontSize: 24, color: Colors.white54),
+                ),
               secondChild: Text(
                 _currentWord.english,
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: isDark ? AppTheme.textLight : Colors.black87,
+                    color: Colors.white,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -734,16 +760,13 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
   }
 
   Widget _buildSentenceCard() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.darkSurface : Colors.white,
+        color: _lavenderPrimary,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? AppTheme.darkSurfaceVariant : Colors.grey.shade200,
-        ),
+        border: Border.all(color: _lavenderSecondary),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -753,12 +776,12 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppTheme.purple.withOpacity(0.1),
+                  color: _lavenderPrimary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
                   Icons.format_quote,
-                  color: AppTheme.purple,
+                  color: _lavenderPrimary,
                   size: 18,
                 ),
               ),
@@ -768,7 +791,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.purple,
+                  color: Colors.white,
                 ),
               ),
               const Spacer(),
@@ -777,12 +800,12 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: widget.chapter.color.withOpacity(0.1),
+                    color: _lavenderPrimary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     _isSpeaking ? Icons.volume_up : Icons.volume_up_outlined,
-                    color: widget.chapter.color,
+                    color: Colors.white,
                     size: 18,
                   ),
                 ),
@@ -796,6 +819,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
               fontSize: 20,
               fontFamily: 'NotoNastaliqUrdu',
               height: 1.6,
+              color: Colors.white,
             ),
             textAlign: TextAlign.right,
             textDirection: TextDirection.rtl,
@@ -805,9 +829,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
             _currentWord.exampleEnglish!,
             style: TextStyle(
               fontSize: 14,
-              color: isDark
-                  ? AppTheme.textLight.withOpacity(0.75)
-                  : Colors.grey.shade600,
+              color: Colors.white70,
               fontStyle: FontStyle.italic,
             ),
           ),
@@ -818,7 +840,6 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
 
   /// Build related words card using semantic recommendations
   Widget _buildRelatedWordsCard() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return FutureBuilder<List<WordRecommendation>>(
       future: WordRecommendationService().findSimilarWords(
         word: _currentWord.urdu,
@@ -836,9 +857,9 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.05),
+            color: _lavenderTint,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.blue.withOpacity(0.2)),
+            border: Border.all(color: _lavenderPrimary.withOpacity(0.18)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -847,7 +868,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                 children: [
                   Icon(
                     Icons.lightbulb_outline,
-                    color: Colors.blue.shade600,
+                    color: _lavenderPrimary,
                     size: 18,
                   ),
                   const SizedBox(width: 8),
@@ -856,7 +877,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: Colors.blue,
+                      color: _lavenderPrimary,
                     ),
                   ),
                 ],
@@ -872,12 +893,11 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                       style: const TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 12,
+                        color: Colors.white,
                       ),
                     ),
-                    backgroundColor: isDark
-                        ? AppTheme.darkSurface
-                        : Colors.white,
-                    side: BorderSide(color: Colors.blue.shade200),
+                    backgroundColor: _lavenderPrimary,
+                    side: BorderSide(color: _lavenderSecondary),
                     onDeleted: null,
                   );
                 }).toList(),
@@ -890,11 +910,10 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
   }
 
   Widget _buildNavigationBar() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.darkSurface : Colors.white,
+        color: _lavenderPrimary,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -912,8 +931,8 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
                 icon: const Icon(Icons.arrow_back_rounded),
                 label: const Text('Previous'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: widget.chapter.color,
-                  side: BorderSide(color: widget.chapter.color),
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white70),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -933,7 +952,7 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen>
               ),
               label: Text(_isLastWord ? 'Complete' : 'Next'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: widget.chapter.color,
+                backgroundColor: _lavenderPrimary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(

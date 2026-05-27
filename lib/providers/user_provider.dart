@@ -50,14 +50,28 @@ class UserProvider extends ChangeNotifier {
     return null;
   }
 
+  int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is num) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value.trim());
+      if (parsed != null) return parsed;
+      final doubleParsed = double.tryParse(value.trim());
+      if (doubleParsed != null) return doubleParsed.round();
+    }
+    return fallback;
+  }
+
   String _avatarPrefsKey(String userId) => 'selected_avatar_$userId';
 
-  Future<void> loadSelectedAvatar() async {
+  Future<void> loadSelectedAvatar({String? userId}) async {
     final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
-    if (firebaseUser == null) return;
+    final resolvedUserId = userId ?? firebaseUser?.uid;
+    if (resolvedUserId == null) return;
 
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_avatarPrefsKey(firebaseUser.uid));
+    final saved = prefs.getString(_avatarPrefsKey(resolvedUserId));
 
     String? normalized;
     String? normalizedPath;
@@ -68,7 +82,7 @@ class UserProvider extends ChangeNotifier {
       try {
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
-            .doc(firebaseUser.uid)
+            .doc(resolvedUserId)
             .get();
         final data = userDoc.data();
         final firestorePath = (data?['selectedAvatarPath'] ?? '')
@@ -97,7 +111,7 @@ class UserProvider extends ChangeNotifier {
     _selectedAvatar = normalized;
     _selectedAvatarPath = normalizedPath;
     await _syncLeaderboardAvatarOnly(
-      firebaseUser.uid,
+      resolvedUserId,
       normalized ?? '',
       normalizedPath ?? '',
     );
@@ -146,30 +160,33 @@ class UserProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> loadUserFromFirebase() async {
+  Future<void> loadUserFromFirebase({String? userId}) async {
     try {
       final firebaseUser = firebase_auth.FirebaseAuth.instance.currentUser;
-      if (firebaseUser != null) {
+      final resolvedUserId = userId ?? firebaseUser?.uid;
+      if (resolvedUserId != null) {
         // Get user data from Firestore
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
-            .doc(firebaseUser.uid)
+            .doc(resolvedUserId)
             .get();
 
         if (userDoc.exists) {
           final data = userDoc.data()!;
-          final emailPrefix = firebaseUser.email?.split('@')[0] ?? 'User';
+          final emailPrefix = firebaseUser?.email?.split('@')[0] ?? 'User';
 
           _currentUser = User(
-            id: firebaseUser.uid,
-            email: firebaseUser.email ?? '',
+            id: resolvedUserId,
+            email: firebaseUser?.email ?? '',
             name: data['displayName'] ?? emailPrefix,
             selectedLanguage: (data['selectedLanguage'] ?? '').toString().trim().toLowerCase(),
             unlockedBadges: List<String>.from(data['unlockedBadges'] ?? []),
-            points: (data['totalXP'] ?? data['totalPoints'] ?? 0) as int,
-            level:
-                data['currentLevel'] ??
-                ((data['totalXP'] ?? 0) / 100).floor() + 1,
+            points: _asInt(data['totalXP'] ?? data['totalPoints'] ?? 0),
+            level: _asInt(
+              data['currentLevel'] ??
+                (_asInt(data['totalXP'] ?? 0) / 100).floor() + 1,
+              fallback: 1,
+            ),
             createdAt:
                 (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
           );
@@ -177,22 +194,22 @@ class UserProvider extends ChangeNotifier {
           notifyListeners();
 
           await _syncLeaderboardEntry(
-            firebaseUser.uid,
+            resolvedUserId,
             _currentUser!.name,
             _currentUser!.points,
             _currentUser!.level,
             _currentUser!.selectedLanguage.trim().toLowerCase(),
           );
 
-          await loadSelectedAvatar();
+          await loadSelectedAvatar(userId: resolvedUserId);
         } else {
           // User doc doesn't exist, create basic user object
-          final fallbackName = firebaseUser.email?.split('@')[0] ?? 'User';
+          final fallbackName = firebaseUser?.email?.split('@')[0] ?? 'User';
           await FirebaseFirestore.instance
               .collection('users')
-              .doc(firebaseUser.uid)
+              .doc(resolvedUserId)
               .set({
-                'email': firebaseUser.email ?? '',
+                'email': firebaseUser?.email ?? '',
                 'displayName': fallbackName,
                 'selectedLanguage': '',
                 'selectedAvatar': '',
@@ -204,8 +221,8 @@ class UserProvider extends ChangeNotifier {
               }, SetOptions(merge: true));
 
           _currentUser = User(
-            id: firebaseUser.uid,
-            email: firebaseUser.email ?? '',
+            id: resolvedUserId,
+            email: firebaseUser?.email ?? '',
             name: fallbackName,
             selectedLanguage: '',
             points: 0,
@@ -217,14 +234,14 @@ class UserProvider extends ChangeNotifier {
           notifyListeners();
 
           await _syncLeaderboardEntry(
-            firebaseUser.uid,
+            resolvedUserId,
             fallbackName,
             0,
             1,
             'urdu',
           );
 
-          await loadSelectedAvatar();
+          await loadSelectedAvatar(userId: resolvedUserId);
         }
       }
     } catch (e) {
@@ -232,8 +249,8 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> fetchUserData() async {
-    await loadUserFromFirebase();
+  Future<void> fetchUserData({String? userId}) async {
+    await loadUserFromFirebase(userId: userId);
   }
 
   Future<void> setSelectedLanguage(String language) async {

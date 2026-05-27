@@ -9,8 +9,10 @@ import 'firebase_options.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 import 'screens/auth/email_verification_screen.dart';
+import 'screens/auth/onboarding_screen_fixed.dart';
 import 'screens/home_screen.dart';
 import 'screens/learning/ai_assistant_screen.dart';
+import 'screens/profile/profile_screen.dart';
 import 'providers/user_provider.dart';
 import 'providers/learning_provider.dart';
 import 'providers/gamification_provider.dart';
@@ -68,9 +70,29 @@ void main() async {
 // Helper function to determine initial screen based on auth state
 Future<Widget> _determineInitialScreen() async {
   await _ensureFirebaseInitialized();
-  // Show Login first on app start. After successful login the
-  // login flow will check SharedPreferences/Firestore for the
-  // selected language and navigate to Home or LanguageSelection.
+  // Priority gating:
+  // 1) FIRST-TIME OPEN -> show onboarding (local flag `isFirstTime`)
+  // 2) RETURNING UNAUTHENTICATED -> show Login
+  // 3) AUTHENTICATED -> show Home
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstTime = prefs.getBool('isFirstTime');
+
+    // If never set or explicitly true, treat as first-time open
+    if (isFirstTime == null || isFirstTime == true) {
+      return const OnboardingScreen();
+    }
+  } catch (e) {
+    debugPrint('Warning: could not read SharedPreferences: $e');
+    // Fall through to normal checks below
+  }
+
+  // If a Firebase user is present, go to Home. Otherwise show Login.
+  final user = FirebaseAuth.instance.currentUser;
+  if (user != null) {
+    return const HomeScreen();
+  }
+
   return const LoginScreen();
 }
 
@@ -135,10 +157,17 @@ class MyApp extends StatelessWidget {
                   page = const PreparingScreen();
                   break;
                 case '/home':
-                  page = const HomeScreen();
+                  final rawIdx = settings.arguments;
+                  final idx = rawIdx is int
+                      ? rawIdx
+                      : int.tryParse(rawIdx?.toString() ?? '') ?? 1;
+                  page = HomeScreen(initialIndex: idx);
                   break;
                 case '/ai-assistant':
                   page = const AIAssistantScreen();
+                  break;
+                case '/profile':
+                  page = const ProfileScreen();
                   break;
                 default:
                   page = const LoginScreen();
@@ -168,14 +197,17 @@ class MyApp extends StatelessWidget {
               );
             },
             routes: {
+              '/profile': (context) => const ProfileScreen(),
               '/login': (context) => const LoginScreen(),
               '/signup': (context) => const SignupScreen(),
               '/email-verification': (context) =>
                   const EmailVerificationScreen(),
                 '/language-selection': (context) => const LanguageSelectionScreen(),
-                '/language-level': (context) {
-                  final selectedLanguage =
-                      (ModalRoute.of(context)?.settings.arguments as String?) ?? 'urdu';
+                  '/language-level': (context) {
+                      final route = ModalRoute.of(context);
+                      final rawLang = route == null ? null : route.settings.arguments;
+                      final selectedLanguage =
+                        (rawLang is String ? rawLang : rawLang?.toString()) ?? 'urdu';
                   return LanguageLevelScreen(
                     languageCode: selectedLanguage,
                     languageName: LanguageOnboardingService.displayLanguageName(selectedLanguage),
@@ -184,7 +216,14 @@ class MyApp extends StatelessWidget {
                 },
               '/time-selection': (context) => const TimeSelectionScreen(),
               '/preparing': (context) => const PreparingScreen(),
-              '/home': (context) => const HomeScreen(),
+              '/home': (context) {
+                final route = ModalRoute.of(context);
+                final rawIdx = route == null ? null : route.settings.arguments;
+                final idx = rawIdx is int
+                  ? rawIdx
+                  : int.tryParse(rawIdx?.toString() ?? '') ?? 1;
+                return HomeScreen(initialIndex: idx);
+              },
               '/ai-assistant': (context) => const AIAssistantScreen(),
             },
           );
@@ -226,21 +265,21 @@ class _AuthGateState extends State<_AuthGate> {
 
       // Load user provider data
       final userProvider = Provider.of<UserProvider>(context, listen: false);
-      await userProvider.loadUserFromFirebase();
+      await userProvider.loadUserFromFirebase(userId: user.uid);
 
       // Load gamification data
       final gamificationProvider = Provider.of<GamificationProvider>(
         context,
         listen: false,
       );
-      await gamificationProvider.loadFromFirestore();
+      await gamificationProvider.loadFromFirestore(userId: user.uid);
 
       // Load learning progress data
       final learningProvider = Provider.of<LearningProvider>(
         context,
         listen: false,
       );
-      await learningProvider.loadProgressFromFirestore();
+      await learningProvider.loadProgressFromFirestore(userId: user.uid);
     }
   }
 

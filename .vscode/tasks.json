@@ -24,6 +24,20 @@
 			},
 			"isBackground": true,
 			"problemMatcher": []
+		},
+		{
+			"label": "Run on Chrome",
+			"type": "shell",
+			"command": "C:/src/flutter/bin/flutter.bat",
+			"args": [
+				"run",
+				"-d",
+				"chrome",
+				"--target",
+				"lib/main.dart"
+			],
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }

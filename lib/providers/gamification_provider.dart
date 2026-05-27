@@ -44,26 +44,42 @@ class GamificationProvider extends ChangeNotifier {
   double get xpMultiplier => _xpMultiplier;
   bool get isLoaded => _isLoaded;
 
+  int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is num) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value.trim());
+      if (parsed != null) return parsed;
+      final doubleParsed = double.tryParse(value.trim());
+      if (doubleParsed != null) return doubleParsed.round();
+    }
+    return fallback;
+  }
+
   /// Load user progress from Firestore
-  Future<void> loadFromFirestore() async {
+  Future<void> loadFromFirestore({String? userId}) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      final resolvedUserId = userId ?? user?.uid;
+      if (resolvedUserId == null) return;
 
       final doc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(resolvedUserId)
           .get();
 
       if (doc.exists) {
         final data = doc.data()!;
-        _totalPoints = (data['totalXP'] ?? data['totalPoints'] ?? 0) as int;
-        _currentLevel =
-            data['currentLevel'] ?? ((_totalPoints / 100).floor() + 1);
-        _streak = data['streak'] ?? 0;
-        _currentStreak = data['currentStreak'] ?? _streak;
-        _totalLessonsCompleted = data['totalLessonsCompleted'] ?? 0;
-        _totalQuizzesCompleted = data['totalQuizzesCompleted'] ?? 0;
+        _totalPoints = _asInt(data['totalXP'] ?? data['totalPoints'] ?? 0);
+        _currentLevel = _asInt(
+          data['currentLevel'] ?? ((_totalPoints / 100).floor() + 1),
+          fallback: 1,
+        );
+        _streak = _asInt(data['streak'] ?? 0);
+        _currentStreak = _asInt(data['currentStreak'] ?? _streak, fallback: _streak);
+        _totalLessonsCompleted = _asInt(data['totalLessonsCompleted'] ?? 0);
+        _totalQuizzesCompleted = _asInt(data['totalQuizzesCompleted'] ?? 0);
 
         // Load last active date
         if (data['lastActiveDate'] != null) {
@@ -102,13 +118,13 @@ class GamificationProvider extends ChangeNotifier {
         );
         
         // Sync to leaderboard on load
-        _syncToLeaderboard(user.uid, user.displayName ?? user.email ?? 'User');
+        _syncToLeaderboard(resolvedUserId, user?.displayName ?? user?.email ?? 'User');
         
         notifyListeners();
       } else {
         // If the gamification doc does not exist yet, still create a leaderboard entry
         _isLoaded = true;
-        _syncToLeaderboard(user.uid, user.displayName ?? user.email ?? 'User');
+        _syncToLeaderboard(resolvedUserId, user?.displayName ?? user?.email ?? 'User');
         notifyListeners();
       }
     } catch (e) {

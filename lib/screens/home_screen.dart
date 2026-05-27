@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../themes/app_theme.dart';
 import '../providers/gamification_provider.dart';
 import '../providers/user_provider.dart';
+import '../providers/learning_provider.dart';
 import 'learning/learn_screen.dart';
 import 'learning/practice_screen.dart';
 import 'profile/profile_screen.dart';
@@ -11,16 +13,19 @@ import 'settings/settings_screen.dart';
 import 'learning/leaderboard_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int initialIndex;
+
+  const HomeScreen({super.key, this.initialIndex = 1});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  int _currentIndex = 1;
+  late int _currentIndex;
   late AnimationController _streakPulse;
   late AnimationController _xpGlow;
+  late Future<void> _initialDataFuture;
 
   final List<Widget> _screens = [
     const ProfileScreen(), // placeholder
@@ -33,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
     _streakPulse = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -41,19 +47,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
+    _initialDataFuture = _loadInitialData();
+  }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      () async {
-        final userProvider = Provider.of<UserProvider>(context, listen: false);
-        await userProvider.fetchUserData();
+  Future<void> _loadInitialData() async {
+    final authUser = FirebaseAuth.instance.currentUser;
+    final userId = authUser?.uid;
 
-        final gamification = Provider.of<GamificationProvider>(
-          context,
-          listen: false,
-        );
-        await gamification.loadFromFirestore();
-      }();
-    });
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    await userProvider.fetchUserData(userId: userId);
+
+    final gamification = Provider.of<GamificationProvider>(
+      context,
+      listen: false,
+    );
+    await gamification.loadFromFirestore(userId: userId);
+
+    final learningProvider = Provider.of<LearningProvider>(
+      context,
+      listen: false,
+    );
+    await learningProvider.loadProgressFromFirestore(userId: userId);
   }
 
   @override
@@ -70,235 +84,138 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor: isDark
-          ? AppTheme.darkBackground
-          : const Color(0xFFF5F7FA),
-      body: Column(
-        children: [
-          // Premium top bar
-          Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 8,
-              left: 20,
-              right: 20,
-              bottom: 16,
+    return FutureBuilder<void>(
+      future: _initialDataFuture,
+      builder: (context, snapshot) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        if (snapshot.connectionState != ConnectionState.done) {
+          return Scaffold(
+            backgroundColor: isDark
+                ? AppTheme.darkBackground
+                : const Color(0xFFF5F7FA),
+            body: const Center(
+              child: CircularProgressIndicator(),
             ),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: isDark
+              ? AppTheme.darkBackground
+              : const Color(0xFFF5F7FA),
+          body: Column(
+            children: [
+              // Screen content
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.05, 0),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  ),
+                  child: KeyedSubtree(
+                    key: ValueKey(_currentIndex),
+                    child: _screens[_currentIndex],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          bottomNavigationBar: Container(
             decoration: BoxDecoration(
               color: isDark ? AppTheme.darkSurface : Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 12,
+                  offset: const Offset(0, -2),
                 ),
               ],
             ),
-            child: Row(
-              children: [
-                // App icon + title
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.asset(
-                    'assets/icons/app_icon1.png',
-                    width: 36,
-                    height: 36,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Spacer(),
-                // Streak badge
-                Consumer<GamificationProvider>(
-                  builder: (context, g, _) => AnimatedBuilder(
-                    animation: _streakPulse,
-                    builder: (context, child) => Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.orange.withValues(
-                              alpha: 0.1 + _streakPulse.value * 0.08,
-                            ),
-                            Colors.deepOrange.withValues(alpha: 0.08),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Transform.scale(
-                            scale: 1.0 + _streakPulse.value * 0.15,
-                            child: const Text(
-                              '🔥',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${g.currentStreak}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: Colors.deepOrange,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // XP badge
-                Consumer<GamificationProvider>(
-                  builder: (context, g, _) => Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppTheme.purple.withOpacity(0.1),
-                          AppTheme.purple.withValues(alpha: 0.1),
-                          AppTheme.purple.withValues(alpha: 0.05),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.bolt,
-                          color: AppTheme.purple,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 2),
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 300),
-                          transitionBuilder: (child, anim) =>
-                              ScaleTransition(scale: anim, child: child),
-                          child: Text(
-                            '${g.totalPoints}',
-                            key: ValueKey(g.totalPoints),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: AppTheme.purple,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Screen content
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.05, 0),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              ),
-              child: KeyedSubtree(
-                key: ValueKey(_currentIndex),
-                child: _screens[_currentIndex],
-              ),
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppTheme.darkSurface : Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 12,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _NavItem(
-                  icon: Consumer<UserProvider>(
-                    builder: (context, userProvider, _) {
-                      final avatarPath = userProvider.selectedAvatarPath;
-                      if (avatarPath == null || avatarPath.isEmpty) {
-                        return const Icon(Icons.person_rounded);
-                      }
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _NavItem(
+                      icon: Consumer<UserProvider>(
+                        builder: (context, userProvider, _) {
+                          final avatarPath = userProvider.selectedAvatarPath;
+                          if (avatarPath == null || avatarPath.isEmpty) {
+                            return const Icon(Icons.person_rounded);
+                          }
 
-                      return CircleAvatar(
-                        radius: 12,
-                        backgroundColor: Colors.transparent,
-                        backgroundImage: AssetImage(avatarPath),
-                      );
-                    },
-                  ),
-                  label: 'Profile',
-                  isActive: _currentIndex == 0,
-                  onTap: () => _onTabTap(0),
-                  color: AppTheme.purple,
+                          return CircleAvatar(
+                            radius: 12,
+                            backgroundColor: Colors.transparent,
+                            backgroundImage: AssetImage(avatarPath),
+                          );
+                        },
+                      ),
+                      label: 'Profile',
+                      isActive: _currentIndex == 0,
+                      onTap: () => _onTabTap(0),
+                      color: AppTheme.purple,
+                    ),
+                    _NavItem(
+                      icon: Image.asset('assets/icons/learnicon.png'),
+                      label: 'Learn',
+                      isActive: _currentIndex == 1,
+                      onTap: () => _onTabTap(1),
+                      color: AppTheme.primaryGreen,
+                    ),
+                    _NavItem(
+                      icon: Image.asset(
+                        'assets/icons/3dicons-crown-dynamic-color.png',
+                        width: 24,
+                        height: 24,
+                        fit: BoxFit.contain,
+                      ),
+                      label: 'Leaderboard',
+                      isActive: _currentIndex == 2,
+                      onTap: () => _onTabTap(2),
+                      color: AppTheme.orange,
+                    ),
+                    _NavItem(
+                      icon: Image.asset(
+                        'assets/icons/3dicons-skull-candle-dynamic-color.png',
+                        width: 28,
+                        height: 28,
+                        fit: BoxFit.contain,
+                      ),
+                      label: 'Practice',
+                      isActive: _currentIndex == 3,
+                      onTap: () => _onTabTap(3),
+                      color: AppTheme.blue,
+                    ),
+                    _NavItem(
+                      icon: Image.asset(
+                        'assets/icons/3dicons-setting-dynamic-color.png',
+                        width: 28,
+                        height: 28,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.settings),
+                      ),
+                      label: 'Settings',
+                      isActive: _currentIndex == 4,
+                      onTap: () => _onTabTap(4),
+                      color: Colors.grey,
+                    ),
+                  ],
                 ),
-                _NavItem(
-                  icon: Image.asset('assets/icons/learnicon.png'),
-                  label: 'Learn',
-                  isActive: _currentIndex == 1,
-                  onTap: () => _onTabTap(1),
-                  color: AppTheme.primaryGreen,
-                ),
-                _NavItem(
-                  icon: const Icon(Icons.emoji_events_rounded),
-                  label: 'Leaderboard',
-                  isActive: _currentIndex == 2,
-                  onTap: () => _onTabTap(2),
-                  color: AppTheme.orange,
-                ),
-                _NavItem(
-                  icon: Image.asset('assets/icons/practiceicon.png'),
-                  label: 'Practice',
-                  isActive: _currentIndex == 3,
-                  onTap: () => _onTabTap(3),
-                  color: AppTheme.blue,
-                ),
-                _NavItem(
-                  icon: Image.asset(
-                    'assets/icons/settingnavbutton.png',
-                    width: 24,
-                    height: 24,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.settings),
-                  ),
-                  label: 'Settings',
-                  isActive: _currentIndex == 4,
-                  onTap: () => _onTabTap(4),
-                  color: Colors.grey,
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -320,6 +237,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = AppTheme.orange;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -330,29 +248,25 @@ class _NavItem extends StatelessWidget {
           vertical: 8,
         ),
         decoration: BoxDecoration(
-          color: isActive ? color.withValues(alpha: 0.12) : Colors.transparent,
+          color: isActive ? activeColor.withValues(alpha: 0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: IconTheme(
-                data: IconThemeData(
-                  color: isActive ? color : Colors.grey.shade400,
-                  size: 24,
-                ),
-                child: icon,
+            IconTheme(
+              data: IconThemeData(
+                color: isActive ? activeColor : Colors.black54,
+                size: 24,
               ),
+              child: SizedBox(width: 24, height: 24, child: icon),
             ),
             if (isActive) ...[
               const SizedBox(width: 6),
               Text(
                 label,
                 style: TextStyle(
-                  color: color,
+                  color: isActive ? activeColor : Colors.black54,
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
                 ),

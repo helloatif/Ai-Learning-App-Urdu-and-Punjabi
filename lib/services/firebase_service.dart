@@ -187,12 +187,6 @@ class FirebaseService {
                   : (user.email ?? email).split('@')[0],
               'emailVerified': true,
               'lastLoginAt': FieldValue.serverTimestamp(),
-              'createdAt': FieldValue.serverTimestamp(),
-              'selectedLanguage': '',
-              'selectedAvatar': '',
-              'totalXP': 0,
-              'totalPoints': 0,
-              'currentLevel': 1,
             }, SetOptions(merge: true));
 
         await _firestore.collection('leaderboard').doc(user.uid).set({

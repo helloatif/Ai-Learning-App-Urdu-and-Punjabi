@@ -72,19 +72,19 @@ class _LoginScreenState extends State<LoginScreen>
     await themeProvider.loadForUser(userId);
 
     final userProvider = Provider.of<UserProvider>(context, listen: false);
-    await userProvider.fetchUserData();
+    await userProvider.fetchUserData(userId: userId);
 
     final gamificationProvider = Provider.of<GamificationProvider>(
       context,
       listen: false,
     );
-    await gamificationProvider.loadFromFirestore();
+    await gamificationProvider.loadFromFirestore(userId: userId);
 
     final learningProvider = Provider.of<LearningProvider>(
       context,
       listen: false,
     );
-    await learningProvider.loadProgressFromFirestore();
+    await learningProvider.loadProgressFromFirestore(userId: userId);
   }
 
   @override
@@ -128,19 +128,16 @@ class _LoginScreenState extends State<LoginScreen>
         final user = FirebaseService.getCurrentUser();
 
         if (user == null) {
-          // Proceed anyway
           if (mounted) {
             setState(() {
               _isLoading = false;
             });
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('✓ Login successful!'),
-                backgroundColor: Color(0xFF3C404A),
-                duration: Duration(seconds: 1),
+                content: Text('Login failed. Please check your credentials.'),
+                duration: Duration(seconds: 3),
               ),
             );
-            Navigator.of(context).pushReplacementNamed('/language-selection');
           }
           return;
         }
@@ -290,42 +287,15 @@ class _LoginScreenState extends State<LoginScreen>
           _isLoading = false;
         });
 
-        // CRITICAL FIX: For web errors, check if user is actually logged in
-        final user = FirebaseService.getCurrentUser();
-
-        if (user != null) {
-          // User is logged in despite the error!
-          if (!user.emailVerified) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('🚫 Please verify your email first!'),
-                backgroundColor: Colors.red,
-              ),
-            );
-            Navigator.of(context).pushReplacementNamed('/email-verification');
-            return;
-          }
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✓ Login successful!'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 1),
-            ),
-          );
-          Navigator.of(context).pushReplacementNamed('/language-selection');
-          return;
-        }
-
-        // No user logged in — show error message
-        String errorMessage = 'Login failed: ${e.toString()}';
-        if (e.toString().contains('user-not-found')) {
+        final errorText = e.toString();
+        String errorMessage = 'Login failed: $errorText';
+        if (errorText.contains('user-not-found')) {
           errorMessage = '❌ No account found with this email. Please sign up first.';
-        } else if (e.toString().contains('wrong-password')) {
+        } else if (errorText.contains('wrong-password')) {
           errorMessage = '❌ Incorrect password. Please try again.';
-        } else if (e.toString().contains('invalid-email')) {
+        } else if (errorText.contains('invalid-email')) {
           errorMessage = '❌ Invalid email format.';
-        } else if (e.toString().contains('invalid-credential')) {
+        } else if (errorText.contains('invalid-credential')) {
           errorMessage = '❌ Invalid email or password. Please try again.';
         }
 

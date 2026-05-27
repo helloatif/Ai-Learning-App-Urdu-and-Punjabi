@@ -39,6 +39,17 @@ service cloud.firestore {
       allow create, update, delete: if signedIn(); 
     }
 
+    // --- Chapter Lessons Collection ---
+    match /chapters/{chapterId} {
+      allow read: if signedIn();
+      allow write: if false;
+
+      match /lessons/{lessonId} {
+        allow read: if signedIn();
+        allow write: if false;
+      }
+    }
+
     // Default deny for anything else
     match /{document=**} {
       allow read, write: if false;

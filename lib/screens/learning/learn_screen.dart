@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../themes/app_theme.dart';
 import '../../providers/learning_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/chapter_service.dart';
-import 'chapter_lessons_screen.dart';
 import 'chapter_lessons_path_screen.dart';
 
 /// Main Learn Screen with Chapter-wise Learning Path
@@ -84,206 +84,149 @@ class _LearnScreenState extends State<LearnScreen>
         final overallProgress = ChapterService.calculateOverallProgress(
           chapters,
         );
+        final List<Color> cardColors = [
+          const Color(0xFFFF6B6B), // Soft Coral Red
+          const Color(0xFFFFB84C), // Warm Orange-Yellow
+          const Color(0xFFA1C298), // Sage Green
+          const Color(0xFF9EA1D4), // Soft Lavender Blue
+        ];
 
-        return Scaffold(
-          body: CustomScrollView(
-            slivers: [
-              // Animated Header
-              SliverAppBar(
-                expandedHeight: 156,
-                floating: false,
-                pinned: true,
-                backgroundColor: AppTheme.primaryGreen,
-                flexibleSpace: FlexibleSpaceBar(
-                  background: AnimatedBuilder(
-                    animation: _headerAnimation,
-                    builder: (context, child) {
-                      return Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              AppTheme.primaryGreen,
-                              AppTheme.primaryGreen.withOpacity(0.8),
-                              Colors.teal,
-                            ],
+        // Choose header color per selected language and make status bar transparent
+        final lang = selectedLanguage.trim().toLowerCase();
+        final Color headerColor = (lang == 'punjabi') ? const Color(0xFFF06292) : AppTheme.primaryGreen;
+        // Per-screen status bar style: use headerColor so system bar matches banner
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: headerColor,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+          ),
+          child: Scaffold(
+          backgroundColor: const Color(0xFFF4F0FF),
+          body: SafeArea(
+              top: true,
+              bottom: false,
+              left: false,
+              right: false,
+              child: DefaultTextStyle.merge(
+                style: const TextStyle(fontStyle: FontStyle.italic),
+                child: Stack(
+                children: [
+                    // add a colored bar behind the system status area to match header
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        height: MediaQuery.of(context).padding.top,
+                        color: headerColor,
+                      ),
+                    ),
+                  Positioned.fill(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.only(top: 190, bottom: 100),
+                      itemCount: chapters.length,
+                      itemBuilder: (context, index) {
+                        final chapter = chapters[index];
+                        final cardColor = cardColors[index % cardColors.length];
+                        final imageAssetPath = _chapterImageAssetPath(index);
+                        final fallbackIcon = _chapterFallbackIcon(index);
+
+                        return Transform.translate(
+                          offset: Offset(0, -18.0 * index),
+                          child: _ChapterCard(
+                            chapter: chapter,
+                            chapterNumber: index + 1,
+                            language: selectedLanguage,
+                            cardColor: cardColor,
+                            imageAssetPath: imageAssetPath,
+                            fallbackIcon: fallbackIcon,
+                            onTap: chapter.isLocked ? null : () => _navigateToChapter(context, chapter),
                           ),
+                        );
+                      },
+                    ),
+                  ),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: headerColor,
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(32),
+                          bottomRight: Radius.circular(32),
                         ),
-                        child: SafeArea(
-                          top: false,
-                          bottom: false,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      ),
+                      child: AnimatedBuilder(
+                        animation: _headerAnimation,
+                        builder: (context, child) {
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
                             child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              mainAxisAlignment: MainAxisAlignment.end,
                               crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                // Language Badge
-                                FadeTransition(
-                                  opacity: _headerAnimation,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppTheme.white.withOpacity(0.3),
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.language, size: 14, color: AppTheme.white),
-                                        const SizedBox(width: 3),
-                                        Text(
-                                          selectedLanguage == 'urdu'
-                                              ? '🇵🇰 Learning Urdu'
-                                              : '🇵🇰 Learning Punjabi',
-                                          style: const TextStyle(
-                                            color: AppTheme.white,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-
-                                // Avatar + Title
+                                // language pill removed per request
+                                const SizedBox(height: 10),
                                 Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    _buildHeaderAvatar(user),
-                                    const SizedBox(width: 10),
+                                    // Rocket icon to the left of the title
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 12.0),
+                                      child: SizedBox(
+                                        width: 44,
+                                        height: 44,
+                                        child: Image.asset(
+                                          'assets/icons/3dicons-rocket-dynamic-color.png',
+                                          fit: BoxFit.contain,
+                                        ),
+                                      ),
+                                    ),
                                     Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          SlideTransition(
-                                            position: Tween<Offset>(
-                                              begin: const Offset(-0.5, 0),
-                                              end: Offset.zero,
-                                            ).animate(_headerAnimation),
-                                            child: const Text(
-                                              'Your Learning Path',
-                                              style: TextStyle(
-                                                fontSize: 24,
-                                                fontWeight: FontWeight.bold,
-                                                color: AppTheme.white,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                      child: SlideTransition(
+                                        position: Tween<Offset>(begin: const Offset(-0.18, 0), end: Offset.zero).animate(_headerAnimation),
+                                        child: Text(
+                                          'Your Learning Path',
+                                          style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppTheme.white, fontStyle: FontStyle.italic),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-
-                                const SizedBox(height: 2),
-
-                                // Progress Bar
-                                FadeTransition(
-                                  opacity: _headerAnimation,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            '${(overallProgress * 100).toInt()}% Complete',
-                                            style: TextStyle(
-                                              color: AppTheme.white.withOpacity(
-                                                0.9,
-                                              ),
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                          Text(
-                                            '${chapters.where((c) => c.progress == 1.0).length}/${chapters.length} Chapters',
-                                            style: TextStyle(
-                                              color: AppTheme.white.withOpacity(
-                                                0.9,
-                                              ),
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: LinearProgressIndicator(
-                                          value: overallProgress,
-                                          backgroundColor: AppTheme.white
-                                              .withOpacity(0.3),
-                                          valueColor:
-                                              const AlwaysStoppedAnimation(
-                                                AppTheme.white,
-                                              ),
-                                          minHeight: 8,
-                                        ),
-                                      ),
-                                    ],
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('${(overallProgress * 100).toInt()}% Complete', style: TextStyle(color: AppTheme.white.withOpacity(0.92), fontSize: 12, fontStyle: FontStyle.italic)),
+                                    Text('${chapters.where((c) => c.progress == 1.0).length}/${chapters.length} Chapters', style: TextStyle(color: AppTheme.white.withOpacity(0.92), fontSize: 12, fontStyle: FontStyle.italic)),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: LinearProgressIndicator(
+                                    value: overallProgress,
+                                    backgroundColor: AppTheme.white.withOpacity(0.28),
+                                    valueColor: const AlwaysStoppedAnimation(AppTheme.white),
+                                    minHeight: 9,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              // Chapter Cards
-              SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    if (index >= chapters.length) return null;
-                    final chapter = chapters[index];
-                    final isLast = index == chapters.length - 1;
-
-                    return TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0.0, end: 1.0),
-                      duration: Duration(milliseconds: 400 + (index * 100)),
-                      curve: Curves.easeOutCubic,
-                      builder: (context, value, child) {
-                        return Transform.translate(
-                          offset: Offset(0, 50 * (1 - value)),
-                          child: Opacity(opacity: value, child: child),
-                        );
-                      },
-                      child: Column(
-                        children: [
-                          _ChapterCard(
-                            chapter: chapter,
-                            chapterNumber: index + 1,
-                            language: selectedLanguage,
-                            onTap: chapter.isLocked
-                                ? null
-                                : () => _navigateToChapter(context, chapter),
-                          ),
-                          if (!isLast) const _PathConnector(),
-                        ],
+                          );
+                        },
                       ),
-                    );
-                  }, childCount: chapters.length),
-                ),
+                    ),
+                  ),
+                ],
               ),
-
-            ],
+            ),
           ),
-        );
+        ),
+      );
       },
     );
   }
@@ -361,12 +304,18 @@ class _ChapterCard extends StatelessWidget {
   final ChapterModel chapter;
   final int chapterNumber;
   final String language;
+  final Color cardColor;
+  final String imageAssetPath;
+  final IconData fallbackIcon;
   final VoidCallback? onTap;
 
   const _ChapterCard({
     required this.chapter,
     required this.chapterNumber,
     required this.language,
+    required this.cardColor,
+    required this.imageAssetPath,
+    required this.fallbackIcon,
     this.onTap,
   });
 
@@ -374,181 +323,166 @@ class _ChapterCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCompleted = chapter.progress == 1.0;
     final isLocked = chapter.isLocked;
-    final progressColor = _getProgressColor(chapter.progress);
+    final progressValue = isLocked ? 0.0 : chapter.progress;
+    final textColor = isLocked ? Colors.white.withOpacity(0.65) : Colors.white;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(28),
         child: Container(
+          margin: EdgeInsets.zero,
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: isLocked ? Colors.grey.shade200 : AppTheme.white,
-            borderRadius: BorderRadius.circular(20),
+            color: cardColor,
+            borderRadius: BorderRadius.circular(32),
             border: Border.all(
-              color: isCompleted
-                  ? AppTheme.primaryGreen
-                  : progressColor.withOpacity(0.3),
-              width: isCompleted ? 3 : 2,
+              color: Colors.white.withOpacity(isLocked ? 0.18 : 0.32),
+              width: 1.5,
             ),
-            boxShadow: isLocked
-                ? []
-                : [
-                    BoxShadow(
-                      color: progressColor.withOpacity(0.2),
-                      blurRadius: 15,
-                      offset: const Offset(0, 5),
-                    ),
-                  ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Chapter Icon
-              _ChapterIcon(
-                icon: chapter.icon,
-                color: chapter.color,
-                isLocked: isLocked,
-                isCompleted: isCompleted,
-                progress: chapter.progress,
+              Container(
+                width: 92,
+                height: 92,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: imageAssetPath.trim().isNotEmpty
+                        ? Image.asset(
+                            imageAssetPath,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                            height: double.infinity,
+                            errorBuilder: (_, __, ___) => Center(
+                              child: Icon(
+                                fallbackIcon,
+                                color: Colors.black87,
+                                size: 34,
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: Icon(
+                              fallbackIcon,
+                              color: Colors.black87,
+                              size: 34,
+                            ),
+                          )),
               ),
-
               const SizedBox(width: 16),
-
-              // Chapter Info
               Expanded(
                 child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Chapter Number
                     Text(
                       'CHAPTER $chapterNumber',
                       style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: isLocked ? Colors.grey : chapter.color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: textColor.withOpacity(0.95),
                         letterSpacing: 1.2,
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
-                    const SizedBox(height: 4),
-
-                    // Title
+                    const SizedBox(height: 6),
                     Text(
                       chapter.titleEnglish,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isLocked ? Colors.grey : Colors.black87,
-                      ),
-                    ),
-
-                    // Native Title
-                    Text(
-                      chapter.title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: isLocked ? Colors.grey : Colors.black54,
-                        fontFamily: 'NotoNastaliqUrdu',
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Description
-                    Text(
-                      chapter.description,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isLocked ? Colors.grey.shade400 : Colors.black54,
-                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 21,
+                        height: 1.05,
+                        fontWeight: FontWeight.w800,
+                        color: textColor,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
-
-                    const SizedBox(height: 12),
-
-                    // Progress & Lessons
-                    if (!isLocked) ...[
-                      Row(
-                        children: [
-                          // Progress Bar
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: LinearProgressIndicator(
-                                value: chapter.progress,
-                                backgroundColor: Colors.grey.shade200,
-                                valueColor: AlwaysStoppedAnimation(
-                                  progressColor,
-                                ),
-                                minHeight: 6,
+                    Text(
+                      chapter.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.0,
+                        color: textColor.withOpacity(0.92),
+                        fontFamily: 'NotoNastaliqUrdu',
+                        fontWeight: FontWeight.w700,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: progressValue,
+                              backgroundColor: Colors.white.withOpacity(0.28),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.white,
                               ),
+                              minHeight: 8,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          // Lesson Count
-                          Text(
-                            '${chapter.completedLessons}/${chapter.lessonCount}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: progressColor,
-                            ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '${(progressValue * 100).toInt()}%',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: textColor,
+                            fontStyle: FontStyle.italic,
                           ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 8),
-
-                      // Topics
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: chapter.topics.take(3).map((topic) {
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: chapter.color.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              topic,
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: chapter.color,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-
-              // Arrow
-              Icon(
-                isLocked ? Icons.lock : Icons.chevron_right,
-                color: isLocked ? Colors.grey : chapter.color,
-                size: 28,
-              ),
+              const SizedBox(width: 10),
+              if (isLocked)
+                Image.asset(
+                  'assets/icons/3dicons-lock-dynamic-color.png',
+                  width: 34,
+                  height: 34,
+                  fit: BoxFit.contain,
+                )
+              else
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.white,
+                  size: 30,
+                ),
             ],
           ),
         ),
       ),
     );
-  }
-
-  Color _getProgressColor(double progress) {
-    if (progress == 0) return Colors.grey;
-    if (progress < 0.5) return Colors.orange;
-    if (progress < 1.0) return Colors.blue;
-    return AppTheme.primaryGreen;
   }
 }
 
@@ -650,4 +584,54 @@ class _PathConnector extends StatelessWidget {
       ),
     );
   }
+}
+
+String _chapterImageAssetPath(int index) {
+  // Map each chapter index to an icon placed in `assets/icons/`.
+  // Files expected: chapter1icon.png ... chapter15icon.png
+  const imageAssetPaths = <String>[
+    'assets/icons/chapter1icon.png',
+    'assets/icons/chapter2icon.png',
+    'assets/icons/chapter3icon.png',
+    'assets/icons/chapter4icon.png',
+    'assets/icons/chapter5icon.png',
+    'assets/icons/chapter6icon.png',
+    'assets/icons/chapter7icon.png',
+    'assets/icons/chapter8icon.png',
+    'assets/icons/chapter9icon.png',
+    'assets/icons/chapter10icon.png',
+    'assets/icons/chapter11icon.png',
+    'assets/icons/chapter12icon.png',
+    'assets/icons/chapter13icon.png',
+    'assets/icons/chapter14icon.png',
+    'assets/icons/chapter15icon.png',
+  ];
+
+  if (index >= 0 && index < imageAssetPaths.length) {
+    return imageAssetPaths[index];
+  }
+
+  return '';
+}
+
+IconData _chapterFallbackIcon(int index) {
+  const fallbackIcons = <IconData>[
+    Icons.menu_book_rounded,
+    Icons.chat_bubble_outline_rounded,
+    Icons.category_rounded,
+    Icons.card_travel_rounded,
+    Icons.restaurant_rounded,
+    Icons.favorite_rounded,
+    Icons.school_rounded,
+    Icons.work_rounded,
+    Icons.devices_rounded,
+    Icons.emoji_events_rounded,
+    Icons.sentiment_satisfied_alt_rounded,
+    Icons.sports_soccer_rounded,
+    Icons.pets_rounded,
+    Icons.shopping_bag_rounded,
+    Icons.home_rounded,
+  ];
+
+  return fallbackIcons[index % fallbackIcons.length];
 }

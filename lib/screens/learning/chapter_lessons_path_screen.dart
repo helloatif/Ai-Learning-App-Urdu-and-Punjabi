@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../data/vocabulary_data.dart';
+import '../../widgets/bottom_navigation.dart';
 import '../../providers/learning_provider.dart';
 import '../../services/chapter_service.dart';
+import '../../services/lesson_service.dart';
+import '../../data/vocabulary_data.dart';
 import 'chapter_quiz_screen.dart';
 import 'teaching_lesson_screen.dart';
 
@@ -27,53 +30,55 @@ class _ChapterLessonsPathScreenState extends State<ChapterLessonsPathScreen>
   with TickerProviderStateMixin {
   static const int totalNodes = 5;
 
+  List<LessonVocabulary> _lessons = const [];
   late List<_NodeData> _nodes;
   AnimationController? _quizPulseController;
   Animation<double>? _quizPulseAnim;
   AnimationController? _quizCompleteController;
   bool _lastQuizPassed = false;
 
-  
+  List<_NodeData> _buildNodes({List<LessonVocabulary>? lessons}) {
+    final chapter = _resolveChapter();
 
-  void _initNodes() {
-    // Default fallback captions
-    final fallback = [
-      'Basics: greetings & alphabet',
-      'Pronunciation & simple phrases',
-      'Everyday vocabulary',
-      'Practice exercises',
-    ];
+    _nodes = List.generate(
+      totalNodes,
+      (index) {
+        if (index == totalNodes - 1) {
+          return _NodeData(
+            title: 'Chapter Quiz',
+            caption: 'Short test of ${_chapterDisplayName(chapter)}',
+          );
+        }
 
-    List<LessonVocabulary>? lessons;
-    if (widget.language == 'punjabi') {
-      lessons = VocabularyData.punjabiLessons[widget.chapterId];
-    } else {
-      lessons = VocabularyData.urduLessons[widget.chapterId];
-    }
+        return _NodeData(
+          title: 'Lesson ${index + 1}',
+          caption: _buildLessonCaption(
+            chapter: chapter,
+            lessons: lessons,
+            index: index,
+          ),
+        );
+      },
+    );
 
-    if (lessons != null && lessons.length >= 4) {
-      _nodes = [
-        _NodeData(title: 'Lesson 1', caption: lessons[0].titleEnglish.isNotEmpty ? lessons[0].titleEnglish : lessons[0].title),
-        _NodeData(title: 'Lesson 2', caption: lessons[1].titleEnglish.isNotEmpty ? lessons[1].titleEnglish : lessons[1].title),
-        _NodeData(title: 'Lesson 3', caption: lessons[2].titleEnglish.isNotEmpty ? lessons[2].titleEnglish : lessons[2].title),
-        _NodeData(title: 'Lesson 4', caption: lessons[3].titleEnglish.isNotEmpty ? lessons[3].titleEnglish : lessons[3].title),
-        const _NodeData(title: 'Chapter Quiz', caption: 'Short test of chapter topics'),
-      ];
-    } else {
-      _nodes = [
-        _NodeData(title: 'Lesson 1', caption: fallback[0]),
-        _NodeData(title: 'Lesson 2', caption: fallback[1]),
-        _NodeData(title: 'Lesson 3', caption: fallback[2]),
-        _NodeData(title: 'Lesson 4', caption: fallback[3]),
-        const _NodeData(title: 'Chapter Quiz', caption: 'Short test of chapter topics'),
-      ];
-    }
+    return _nodes;
+  }
+
+  Future<void> _loadLessons() async {
+    final lessons = await LessonService.getLessons(widget.chapterId, widget.language);
+    if (!mounted) return;
+
+    setState(() {
+      _lessons = lessons;
+      _buildNodes(lessons: _lessons);
+    });
   }
 
   @override
   void initState() {
     super.initState();
-    _initNodes();
+    _buildNodes();
+    _loadLessons();
 
     _quizPulseController = AnimationController(
       vsync: this,
@@ -162,9 +167,13 @@ class _ChapterLessonsPathScreenState extends State<ChapterLessonsPathScreen>
 
     final circle = GestureDetector(
       onTap: unlocked ? () => _onNodeTap(index) : null,
-      child: SizedBox(
+      child: Container(
         width: 76,
         height: 76,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+        ),
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -203,7 +212,9 @@ class _ChapterLessonsPathScreenState extends State<ChapterLessonsPathScreen>
               )
             else
               Image.asset(
-                unlocked ? 'assets/icons/unlocknodes.png' : 'assets/icons/locknodes.png',
+                unlocked
+                    ? 'assets/icons/unlocknodes.png'
+                    : 'assets/icons/locknodes.png',
                 width: 76,
                 height: 76,
                 fit: BoxFit.contain,
@@ -225,9 +236,17 @@ class _ChapterLessonsPathScreenState extends State<ChapterLessonsPathScreen>
     );
 
     // Title + caption under node
-    final titleText = Text(node.title, style: theme.textTheme.bodySmall);
+    final titleText = Text(
+      node.title,
+      style: (index == totalNodes)
+          ? theme.textTheme.bodySmall
+          : theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              fontStyle: FontStyle.italic,
+            ),
+    );
 
-    final captionValue = node.caption ?? '';
+    final captionValue = node.caption;
     final captionText = captionValue.isNotEmpty
         ? Padding(
             padding: const EdgeInsets.only(top: 4.0),
@@ -288,71 +307,69 @@ class _ChapterLessonsPathScreenState extends State<ChapterLessonsPathScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Color(0xFFCE82FF),
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      ),
+      child: Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            // Sticky header
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                height: 68,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: kIsWeb ? Colors.purple : Colors.transparent,
-                  image: kIsWeb
-                      ? null
-                      : const DecorationImage(
-                          image: AssetImage('assets/icons/purplebar.png'),
-                          fit: BoxFit.fill,
+            // Sticky header (rectangular corners for Android)
+            Container(
+              height: 68,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFFCE82FF),
+                borderRadius: BorderRadius.zero,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    color: Colors.white,
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'SECTION',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      color: Colors.white,
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'SECTION',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.chapterTitle,
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.chapterTitle,
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: Image.asset(
-                        'assets/icons/lessonheadericon.png',
-                        width: 36,
-                        height: 36,
-                        fit: BoxFit.contain,
-                      ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0),
+                    child: Image.asset(
+                      'assets/icons/lessonheadericon.png',
+                      width: 19,
+                      height: 19,
+                      fit: BoxFit.contain,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
 
@@ -360,13 +377,29 @@ class _ChapterLessonsPathScreenState extends State<ChapterLessonsPathScreen>
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Column(
-                  children: List.generate(totalNodes, (i) => _buildNode(context, i + 1)),
+                child: Stack(
+                  children: [
+                    // Positioned painter spanning the full height of the node list
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: PathCurvePainter(totalNodes: totalNodes),
+                      ),
+                    ),
+                    // The interactive nodes layer on top
+                    Column(
+                      children: List.generate(
+                        totalNodes,
+                        (i) => _buildNode(context, i + 1),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
+      ),
+      bottomNavigationBar: const AppBottomNavigation(),
       ),
     );
   }
@@ -378,16 +411,18 @@ class _ChapterLessonsPathScreenState extends State<ChapterLessonsPathScreen>
           orElse: () => ChapterService.getChapters(widget.language).first,
         );
 
-    final lessonsMap = widget.language == 'punjabi'
-        ? VocabularyData.punjabiLessons
-        : VocabularyData.urduLessons;
-    final lessons = lessonsMap[widget.chapterId];
-
     LessonVocabulary lesson;
-    if (lessons != null && lessons.length > index - 1) {
-      lesson = lessons[index - 1];
+    if (_lessons.length > index - 1) {
+      lesson = _lessons[index - 1];
     } else {
-      lesson = _NodeData.defaultLesson(index);
+      lesson = _NodeData.defaultLesson(
+        index,
+        lessonTitle: _buildLessonCaption(
+          chapter: chapter,
+          lessons: _lessons,
+          index: index - 1,
+        ),
+      );
     }
 
     await Navigator.of(context).push(
@@ -422,6 +457,37 @@ class _ChapterLessonsPathScreenState extends State<ChapterLessonsPathScreen>
           isLocked: false,
         );
   }
+
+  String _chapterDisplayName(ChapterModel chapter) {
+    final english = chapter.titleEnglish.trim();
+    if (english.isNotEmpty) return english;
+
+    final localTitle = chapter.title.trim();
+    if (localTitle.isNotEmpty) return localTitle;
+
+    return widget.chapterTitle.trim().isNotEmpty ? widget.chapterTitle.trim() : 'This chapter';
+  }
+
+  String _buildLessonCaption({
+    required ChapterModel chapter,
+    required List<LessonVocabulary>? lessons,
+    required int index,
+  }) {
+    final lesson = (lessons != null && index < lessons.length) ? lessons[index] : null;
+
+    final lessonEnglish = lesson?.titleEnglish.trim() ?? '';
+    if (lessonEnglish.isNotEmpty) return lessonEnglish;
+
+    final lessonLocal = lesson?.title.trim() ?? '';
+    if (lessonLocal.isNotEmpty) return lessonLocal;
+
+    if (chapter.topics.isNotEmpty && index < chapter.topics.length) {
+      final topic = chapter.topics[index].trim();
+      if (topic.isNotEmpty) return topic;
+    }
+
+    return '${_chapterDisplayName(chapter)} ${index + 1}';
+  }
 }
 
 class _NodeData {
@@ -430,12 +496,80 @@ class _NodeData {
 
   const _NodeData({required this.title, this.caption = ''});
 
-  static LessonVocabulary defaultLesson(int index) {
+  static LessonVocabulary defaultLesson(
+    int index, {
+    required String lessonTitle,
+  }) {
     return LessonVocabulary(
       lessonNumber: index,
-      title: 'Lesson $index',
-      titleEnglish: 'Lesson $index',
+      title: lessonTitle,
+      titleEnglish: lessonTitle,
       words: const [],
     );
   }
+}
+
+class PathCurvePainter extends CustomPainter {
+  final int totalNodes;
+  PathCurvePainter({required this.totalNodes});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFE0E5ED)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 6.0
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path();
+    const double rowHeight = 160.0;
+
+    final double leftX = size.width * 0.18;
+    final double centerX = size.width * 0.5;
+    final double rightX = size.width * 0.82;
+
+    final List<Offset> points = [];
+    for (int i = 0; i < totalNodes; i++) {
+      double x = centerX;
+      if (i == 0) x = leftX;
+      if (i == 2) x = rightX;
+
+      final double y = (i * rowHeight) + 64.0;
+      points.add(Offset(x, y));
+    }
+
+    if (points.isEmpty) return;
+
+    path.moveTo(points[0].dx, points[0].dy);
+    for (int i = 0; i < points.length - 1; i++) {
+      final p0 = points[i];
+      final p1 = points[i + 1];
+
+      final controlX = (p0.dx + p1.dx) / 2;
+      final controlY = (p0.dy + p1.dy) / 2;
+
+      path.quadraticBezierTo(p0.dx, controlY, controlX, controlY);
+      path.quadraticBezierTo(p1.dx, controlY, p1.dx, p1.dy);
+    }
+
+    // Turn the solid curve into an elegant dashed/dotted path
+    final dashedPath = Path();
+    const dashWidth = 10.0;
+    const dashSpace = 8.0;
+
+    for (final metric in path.computeMetrics()) {
+      double distance = 0.0;
+      while (distance < metric.length) {
+        dashedPath.addPath(
+          metric.extractPath(distance, distance + dashWidth),
+          Offset.zero,
+        );
+        distance += dashWidth + dashSpace;
+      }
+    }
+    canvas.drawPath(dashedPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

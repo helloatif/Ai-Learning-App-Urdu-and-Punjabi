@@ -118,7 +118,32 @@ class _ChapterLessonsScreenState extends State<ChapterLessonsScreen>
   @override
   Widget build(BuildContext context) {
     if (_isLoadingLessons) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Scaffold(
+        backgroundColor: isDark
+            ? AppTheme.darkBackground
+            : const Color(0xFFF5F7FA),
+        appBar: AppBar(
+          title: Text(widget.chapter.titleEnglish),
+          backgroundColor: widget.chapter.color,
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Loading lesson steps...',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isDark ? Colors.white70 : AppTheme.darkSurfaceVariant,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      );
     }
 
     if (_lessons.isEmpty) {

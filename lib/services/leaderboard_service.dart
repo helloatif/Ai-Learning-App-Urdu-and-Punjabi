@@ -23,12 +23,25 @@ class LeaderboardUser {
     required this.rank,
   });
 
+  static int _asInt(dynamic value, {int fallback = 0}) {
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is num) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value.trim());
+      if (parsed != null) return parsed;
+      final doubleParsed = double.tryParse(value.trim());
+      if (doubleParsed != null) return doubleParsed.round();
+    }
+    return fallback;
+  }
+
   factory LeaderboardUser.fromMap(Map<String, dynamic> data, int rank) {
     return LeaderboardUser(
       id: data['id'] ?? '',
       displayName: data['displayName'] ?? 'Unknown User',
-      totalXP: (data['totalXP'] ?? data['totalPoints'] ?? 0) as int,
-      currentLevel: (data['currentLevel'] ?? 1) as int,
+      totalXP: _asInt(data['totalXP'] ?? data['totalPoints'] ?? 0),
+      currentLevel: _asInt(data['currentLevel'] ?? 1, fallback: 1),
       selectedLanguage: (data['selectedLanguage'] ?? '').toString().trim().toLowerCase(),
       selectedAvatar: (data['selectedAvatar'] ?? '').toString().trim().toLowerCase(),
       selectedAvatarPath: (data['selectedAvatarPath'] ?? '').toString().trim(),
@@ -169,7 +182,9 @@ class LeaderboardService {
       final userDoc = await _firestore.collection('leaderboard').doc(userId).get();
       if (!userDoc.exists) return null;
 
-      final userXP = (userDoc.data()?['totalXP'] ?? userDoc.data()?['totalPoints'] ?? 0) as int;
+      final userXP = LeaderboardUser._asInt(
+        userDoc.data()?['totalXP'] ?? userDoc.data()?['totalPoints'] ?? 0,
+      );
 
       // Count how many users have more XP
       final countSnapshot = await _firestore
@@ -305,12 +320,12 @@ class LeaderboardService {
 
   static List<LeaderboardUser> _deserializeLeaderboard(String json) {
     final data = jsonDecode(json) as List;
-    return data
-        .map((item) => LeaderboardUser.fromMap(
-              Map<String, dynamic>.from(item),
-              item['rank'] as int,
-            ))
-        .toList();
+    return data.map((item) {
+      final map = Map<String, dynamic>.from(item);
+      final rawRank = map['rank'];
+      final rank = LeaderboardUser._asInt(rawRank, fallback: 0);
+      return LeaderboardUser.fromMap(map, rank > 0 ? rank : 1);
+    }).toList();
   }
 
   /// Backfill missing selectedLanguage fields in leaderboard top results
