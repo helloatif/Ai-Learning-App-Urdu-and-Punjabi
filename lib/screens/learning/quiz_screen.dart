@@ -78,8 +78,10 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
     );
     _feedbackAnimation = CurvedAnimation(
       parent: _feedbackAnimationController,
-      curve: Curves.elasticOut,
+      curve: Curves.easeOutBack,
     );
+
+    // Question Content
   }
 
   @override
@@ -580,7 +582,7 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
 
     if (_questions.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Quiz')),
+        appBar: AppBar(title: Text(widget.chapter.titleEnglish), centerTitle: true),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -651,21 +653,14 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                         ),
                       ),
                       Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Text(
-                            'Question',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
                           Text(
-                            '${_currentQuestionIndex + 1}',
+                            'Question ${_currentQuestionIndex + 1} of ${_questions.length}',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],
@@ -676,17 +671,32 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: LinearProgressIndicator(
-                      value: _questions.length <= 1
-                          ? 1
-                          : _currentQuestionIndex / (_questions.length - 1),
-                      minHeight: 8,
-                      backgroundColor: Colors.white.withOpacity(0.22),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        Color(0xFFFFA24C),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF4F84FF),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        widget.chapter.titleEnglish,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -704,15 +714,15 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                     // Question Card
                     Container(
                       constraints: const BoxConstraints(minHeight: 230),
-                      padding: const EdgeInsets.all(28),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                       decoration: BoxDecoration(
-                        color: isDark ? AppTheme.darkSurface : Colors.white,
-                        borderRadius: BorderRadius.circular(28),
+                        color: const Color(0xFF4F84FF),
+                        borderRadius: BorderRadius.circular(18),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 24,
-                            offset: const Offset(0, 10),
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, -4),
                           ),
                         ],
                       ),
@@ -720,16 +730,37 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
                         child: Text(
                           currentQuestion.question,
                           style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w800,
+                                fontSize: 18,
+                            fontWeight: FontWeight.bold,
                             height: 1.15,
-                            color: Color(0xFF27116B),
+                            color: Colors.white,
                           ),
                           textAlign: TextAlign.center,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 28),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // Progress bar (below question)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                          child: TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.0, end: (_currentQuestionIndex + 1) / (_questions.isEmpty ? 1 : _questions.length)),
+                            duration: const Duration(milliseconds: 300),
+                            builder: (context, value, _) => ClipRRect(
+                              borderRadius: BorderRadius.circular(99),
+                              child: LinearProgressIndicator(
+                                value: value,
+                                minHeight: 8,
+                                backgroundColor: Colors.white.withOpacity(0.6),
+                                valueColor: const AlwaysStoppedAnimation(Color(0xFF4F84FF)),
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 28),
                     _buildAnswerSection(currentQuestion),
                     if (_showResult && _lastScoreResult != null) ...[
                       const SizedBox(height: 24),
@@ -815,80 +846,92 @@ class _QuizScreenState extends State<QuizScreen> with TickerProviderStateMixin {
   Widget _buildMultipleChoice(EnhancedQuizQuestion question) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final displayOptions = _getDisplayOptions(question);
-    return Column(
-      children:
-          displayOptions.asMap().entries.map((entry) {
-            final index = entry.key;
-            final option = entry.value;
-            final isCorrect = option == question.correctAnswer;
-            final isSelected = question.selectedAnswer == option;
+    // Render options in a two-column grid for a compact layout
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: 2,
+      mainAxisSpacing: 14,
+      crossAxisSpacing: 14,
+      childAspectRatio: 1.65,
+      children: displayOptions.asMap().entries.map((entry) {
+        final index = entry.key;
+        final option = entry.value;
+        final isCorrect = option == question.correctAnswer;
+        final isSelected = question.selectedAnswer == option;
 
-            Color backgroundColor = Colors.transparent;
-            Color borderColor = Colors.white.withOpacity(0.28);
-            Color textColor = Colors.white;
+        Color backgroundColor = Colors.transparent;
+        Color borderColor = Colors.white.withOpacity(0.28);
+        Color textColor = Colors.white;
 
-            if (_showResult) {
-              if (isCorrect) {
-                backgroundColor = Colors.green.withOpacity(0.95);
-                borderColor = Colors.green;
-                textColor = Colors.white;
-              } else if (isSelected && !isCorrect) {
-                backgroundColor = Colors.red.withOpacity(0.92);
-                borderColor = Colors.red;
-                textColor = Colors.white;
-              }
-            } else if (isSelected) {
-              backgroundColor = const Color(0xFFFF8A3D);
-              borderColor = const Color(0xFFFF8A3D);
-              textColor = Colors.white;
-            }
+        if (_showResult) {
+          if (isCorrect) {
+            backgroundColor = Colors.green.withOpacity(0.95);
+            borderColor = Colors.green;
+            textColor = Colors.white;
+          } else if (isSelected && !isCorrect) {
+            backgroundColor = Colors.red.withOpacity(0.92);
+            borderColor = Colors.red;
+            textColor = Colors.white;
+          }
+        } else if (isSelected) {
+          backgroundColor = const Color(0xFFFF8A3D);
+          borderColor = const Color(0xFFFF8A3D);
+          textColor = Colors.white;
+        }
 
-            return TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0.0, end: 1.0),
-              duration: Duration(milliseconds: 300 + (index * 80)),
-              builder: (context, value, child) {
-                return Transform.translate(
-                  offset: Offset(30 * (1 - value), 0),
-                  child: Opacity(opacity: value, child: child),
-                );
-              },
-              child: GestureDetector(
-                onTap: _showResult || _isCheckingAnswer
-                    ? null
-                    : () => _answerQuestion(option),
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  height: 56,
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  decoration: BoxDecoration(
-                    color: backgroundColor,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: borderColor,
-                      width: isSelected || (_showResult && isCorrect) ? 2 : 1,
-                    ),
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: Duration(milliseconds: 300 + (index * 80)),
+          builder: (context, value, child) {
+            return Transform.translate(
+              offset: Offset(30 * (1 - value), 0),
+              child: Opacity(opacity: value, child: child),
+            );
+          },
+          child: GestureDetector(
+            onTap: _showResult || _isCheckingAnswer
+                ? null
+                : () => _answerQuestion(option),
+            child: Container(
+              height: 92,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: backgroundColor == Colors.transparent
+                    ? Colors.white
+                    : backgroundColor,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: borderColor == Colors.white.withOpacity(0.28)
+                      ? AppTheme.primaryGreen.withOpacity(0.30)
+                      : borderColor,
+                  width: isSelected || (_showResult && isCorrect) ? 3 : 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryGreen.withOpacity(0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                  child: Row(
-                    children: [
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          option,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
-                            color: textColor,
-                          ),
-                        ),
-                      ),
-                    ],
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  option,
+                  textAlign: TextAlign.center,
+                  textDirection: TextDirection.rtl,
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                    color: textColor == Colors.white ? AppTheme.textDark : textColor,
                   ),
                 ),
               ),
-            );
-          }).toList() ??
-          [],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 

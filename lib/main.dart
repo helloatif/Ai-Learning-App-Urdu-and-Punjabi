@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'firebase_options.dart';
@@ -23,12 +22,8 @@ import 'screens/learning/language_level_screen.dart';
 import 'screens/learning/time_selection_screen.dart';
 import 'screens/learning/preparing_screen.dart';
 import 'services/adaptive_quiz_service.dart';
-import 'services/firebase_service.dart';
 import 'services/language_onboarding_service.dart';
 import 'themes/app_theme.dart';
-
-// Global flag for language selection
-const String _languageSelectedKey = 'language_selected_flag';
 
 // Global variable to store initial theme preference
 bool _initialDarkMode = false;
@@ -164,7 +159,7 @@ class MyApp extends StatelessWidget {
                   page = HomeScreen(initialIndex: idx);
                   break;
                 case '/ai-assistant':
-                  page = const AIAssistantScreen();
+                  page = AiAssistantScreen();
                   break;
                 case '/profile':
                   page = const ProfileScreen();
@@ -224,7 +219,7 @@ class MyApp extends StatelessWidget {
                   : int.tryParse(rawIdx?.toString() ?? '') ?? 1;
                 return HomeScreen(initialIndex: idx);
               },
-              '/ai-assistant': (context) => const AIAssistantScreen(),
+              '/ai-assistant': (context) => AiAssistantScreen(),
             },
           );
         },

@@ -6,6 +6,7 @@ import '../../providers/gamification_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/firebase_service.dart';
 import '../../themes/app_theme.dart';
+import '../learning/ai_assistant_screen.dart';
 import '../learning/leaderboard_screen.dart';
 import '../learning/learn_screen.dart';
 
@@ -270,7 +271,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   children: [
                                     _TopIconButton(
                                       icon: Image.asset(
-                                        'assets/icons/3dicons-setting-dynamic-color.png',
+                                        'assets/icons/3dicons-thumb-up-dynamic-color.png',
                                         width: 20,
                                         height: 20,
                                         fit: BoxFit.contain,
@@ -356,20 +357,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 childAspectRatio: 0.92,
                                 children: [
                                   _BentoCard(
-                                    title: 'Play Quiz!',
-                                    subtitle:
-                                        'Play either Solo, against Randoms or against your Friends',
+                                    title: 'AI Assistant',
+                                    subtitle: '',
                                     color: const Color(0xFFD78CFF),
                                     icon: Icons.play_arrow_rounded,
-                                    accentIcon: Icons.pets_rounded,
-                                    onTap: () => _showComingSoonSnack('Play Quiz'),
+                                    accentIcon: null,
+                                    accentAsset: 'assets/icons/Futuristic Glowing Cube.png',
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => const AiAssistantScreen(),
+                                        ),
+                                      );
+                                    },
                                   ),
                                   _BentoCard(
                                     title: 'Stories',
                                     subtitle: '',
                                     color: const Color(0xFF82EEFD),
                                     icon: Icons.add_rounded,
-                                    iconAsset: null,
+                                    iconAsset: 'assets/icons/Cloud-3-zap.png',
                                     accentIcon: null,
                                     centerAsset: 'assets/icons/storiesicon.png',
                                     onTap: () => _showComingSoonSnack('Stories'),
@@ -585,6 +592,28 @@ class _BentoCard extends StatelessWidget {
           ),
           child: Stack(
             children: [
+              // Top-left small icon for center-asset cards (e.g., Stories)
+              if (centerAsset != null && iconAsset != null)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: const BoxDecoration(
+                      color: Colors.transparent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(2),
+                      child: Image.asset(
+                        iconAsset!,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+
               if (centerAsset != null)
                 Positioned.fill(
                   child: Stack(
@@ -714,12 +743,15 @@ class _BentoCard extends StatelessWidget {
                   right: 8,
                   top: 15,
                   child: Center(
-                    child: SizedBox(
-                      width: 92,
-                      height: 92,
-                      child: Image.asset(
-                        accentAsset!,
-                        fit: BoxFit.contain,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: 92,
+                        height: 92,
+                        child: Image.asset(
+                          accentAsset!,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                   ),

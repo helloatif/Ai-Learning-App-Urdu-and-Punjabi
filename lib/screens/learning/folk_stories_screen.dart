@@ -175,7 +175,11 @@ class _FolkStoriesScreenState extends State<FolkStoriesScreen> {
                       onPressed: (_storyText.isEmpty || _isSpeaking)
                           ? null
                           : _speakStory,
-                      icon: Icon(_isSpeaking ? Icons.volume_off : Icons.volume_up),
+                      icon: Image.asset(
+                        'assets/icons/3dicons-megaphone-dynamic-color.png',
+                        width: 18,
+                        height: 18,
+                      ),
                       label: Text(_isSpeaking ? 'Speaking...' : 'Speak Story'),
                     ),
                   ),

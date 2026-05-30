@@ -182,9 +182,10 @@ class _GrammarCheckerScreenState extends State<GrammarCheckerScreen> {
                     children: [
                       Row(
                         children: [
-                          const Icon(
-                            Icons.lightbulb,
-                            color: AppTheme.primaryGreen,
+                          Image.asset(
+                            'assets/icons/3dicons-bulb-dynamic-color.png',
+                            width: 20,
+                            height: 20,
                           ),
                           const SizedBox(width: 8),
                           Text(

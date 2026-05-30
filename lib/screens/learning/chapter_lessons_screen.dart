@@ -367,10 +367,10 @@ class _ChapterLessonsScreenState extends State<ChapterLessonsScreen>
                           color: widget.chapter.color.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Icon(
-                          Icons.lightbulb_outline,
-                          color: widget.chapter.color,
-                          size: 18,
+                        child: Image.asset(
+                          'assets/icons/3dicons-bulb-dynamic-color.png',
+                          width: 18,
+                          height: 18,
                         ),
                       ),
                       const SizedBox(width: 10),

@@ -169,9 +169,10 @@ class PracticeScreen extends StatelessWidget {
                             color: AppTheme.primaryGreen.withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.lightbulb,
-                            color: AppTheme.primaryGreen,
+                          child: Image.asset(
+                            'assets/icons/3dicons-bulb-dynamic-color.png',
+                            width: 18,
+                            height: 18,
                           ),
                         ),
                         const SizedBox(width: 14),

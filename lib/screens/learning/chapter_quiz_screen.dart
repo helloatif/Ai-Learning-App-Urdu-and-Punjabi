@@ -379,7 +379,7 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
 
     if (_questions.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Chapter Quiz')),
+        appBar: AppBar(title: Text(widget.chapter.titleEnglish), centerTitle: true),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -417,71 +417,44 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
         toolbarHeight: 72,
         leading: Padding(
           padding: const EdgeInsets.only(left: 12),
-          child: InkWell(
-            onTap: _showExitDialog,
-            borderRadius: BorderRadius.circular(14),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.close, color: AppTheme.textDark, size: 20),
-            ),
+          child: IconButton(
+            onPressed: _showExitDialog,
+            icon: const Icon(Icons.close, color: AppTheme.textDark, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ),
-        title: Text(
-          'Chapter Quiz',
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: AppTheme.textDark,
-            fontWeight: FontWeight.bold,
+        title: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFF4F84FF),
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            widget.chapter.titleEnglish,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         centerTitle: true,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Text(
-                widget.chapter.titleEnglish,
-                style: const TextStyle(
-                  color: AppTheme.textDark,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-        ],
       ),
       body: SafeArea(
         child: Column(
           children: [
-            // Progress indicator
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: _buildProgressIndicator(),
-            ),
+            const SizedBox(height: 10),
 
             // Question content
             Expanded(
@@ -500,45 +473,8 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
   }
 
   Widget _buildProgressIndicator() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Question ${_currentQuestionIndex + 1} of ${_questions.length}',
-                style: const TextStyle(
-                  color: AppTheme.textDark,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              _buildQuestionTypeChip(),
-            ],
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: (_currentQuestionIndex + 1) / _questions.length,
-            backgroundColor: const Color(0xFFE8EDF5),
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4F84FF)),
-            borderRadius: BorderRadius.circular(999),
-            minHeight: 10,
-          ),
-        ],
-      ),
-    );
+    // Progress indicator removed - placeholder kept for compatibility
+    return const SizedBox.shrink();
   }
 
   Widget _buildQuestionTypeChip() {
@@ -629,19 +565,48 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
 
             // Question text
             Container(
-              padding: const EdgeInsets.all(16),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF7FAFF),
-                borderRadius: BorderRadius.circular(18),
+                color: const Color(0xFF4F84FF),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
               child: Text(
                 question.question,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.textDark,
-                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
                   height: 1.45,
                 ),
                 textAlign: TextAlign.center,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Progress bar (below question)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: (_currentQuestionIndex + 1) / (_questions.isEmpty ? 1 : _questions.length)),
+                duration: const Duration(milliseconds: 300),
+                builder: (context, value, _) => ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: LinearProgressIndicator(
+                    value: value,
+                    minHeight: 8,
+                    backgroundColor: Colors.white.withOpacity(0.6),
+                    valueColor: const AlwaysStoppedAnimation(Color(0xFF4F84FF)),
+                  ),
+                ),
               ),
             ),
 
@@ -651,7 +616,11 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
               Center(
                 child: OutlinedButton.icon(
                   onPressed: () => _speakWord(question.urduWord!),
-                  icon: const Icon(Icons.volume_up),
+                  icon: Image.asset(
+                    'assets/icons/3dicons-megaphone-dynamic-color.png',
+                    width: 18,
+                    height: 18,
+                  ),
                   label: const Text('Listen'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF4F84FF),
@@ -727,71 +696,74 @@ class _ChapterQuizScreenState extends State<ChapterQuizScreen>
         );
 
       case QuestionType.multipleChoice:
-        return Column(
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 1.25,
           children: question.options!.map((option) {
             final isSelected = question.userAnswer == option;
             final isCorrect = option == question.correctAnswer;
 
-            Color? bgColor;
-            Color? borderColor;
+            Color backgroundColor = Colors.white;
+            Color borderColor = AppTheme.primaryGreen.withOpacity(0.45);
 
             if (_isAnswerChecked) {
               if (isCorrect) {
-                bgColor = Colors.green.withOpacity(0.2);
-                borderColor = Colors.green;
-              } else if (isSelected && !isCorrect) {
-                bgColor = Colors.red.withOpacity(0.2);
-                borderColor = Colors.red;
+                backgroundColor = AppTheme.primaryGreen.withValues(alpha: 0.12);
+                borderColor = AppTheme.primaryGreen;
+              } else if (isSelected) {
+                backgroundColor = AppTheme.red.withValues(alpha: 0.10);
+                borderColor = AppTheme.red;
               }
             } else if (isSelected) {
-              bgColor = AppTheme.orange.withOpacity(0.2);
-              borderColor = AppTheme.orange;
+              backgroundColor = AppTheme.primaryGreen.withValues(alpha: 0.08);
+              borderColor = AppTheme.primaryGreen;
             }
 
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: InkWell(
-                onTap: _isAnswerChecked
-                    ? null
-                    : () {
-                        setState(() {
-                          question.userAnswer = option;
-                          _answerController.text = option;
-                        });
-                      },
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: bgColor ?? const Color(0xFFF7FAFF),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: borderColor ?? const Color(0xFFD9E4FF),
-                      width: isSelected || (_isAnswerChecked && isCorrect)
-                          ? 2
-                          : 1,
-                    ),
+            return InkWell(
+              onTap: _isAnswerChecked
+                  ? null
+                  : () {
+                      setState(() {
+                        question.userAnswer = option;
+                        _answerController.text = option;
+                      });
+                    },
+              borderRadius: BorderRadius.circular(24),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 124),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+                decoration: BoxDecoration(
+                  color: backgroundColor,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: borderColor,
+                    width: isSelected || (_isAnswerChecked && isCorrect) ? 3 : 2,
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          option,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: AppTheme.textDark,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                        ),
-                      ),
-                      if (_isAnswerChecked && isCorrect)
-                        const Icon(Icons.check_circle, color: Colors.green),
-                      if (_isAnswerChecked && isSelected && !isCorrect)
-                        const Icon(Icons.cancel, color: Colors.red),
-                    ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.primaryGreen.withOpacity(0.08),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    option,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    textDirection: TextDirection.rtl,
+                    style: TextStyle(
+                      fontSize: 20,
+                      height: 1.25,
+                      color: AppTheme.textDark,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                      fontFamily: 'NotoNastaliqUrdu',
+                    ),
                   ),
                 ),
               ),

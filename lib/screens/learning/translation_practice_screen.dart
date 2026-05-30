@@ -195,7 +195,11 @@ class _TranslationPracticeScreenState extends State<TranslationPracticeScreen> {
               children: [
                 OutlinedButton.icon(
                   onPressed: _translatedText.isEmpty ? null : _speakOutput,
-                  icon: const Icon(Icons.volume_up),
+                  icon: Image.asset(
+                    'assets/icons/3dicons-megaphone-dynamic-color.png',
+                    width: 18,
+                    height: 18,
+                  ),
                   label: const Text('Speak Translation'),
                 ),
                 const SizedBox(width: 8),

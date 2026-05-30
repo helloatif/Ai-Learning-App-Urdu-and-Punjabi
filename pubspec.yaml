@@ -41,8 +41,8 @@ dependencies:
   cloud_firestore: ^6.2.0
   
   # Voice and Speech
-  speech_to_text: ^7.0.0
-  flutter_tts: ^4.2.0
+  speech_to_text: ^7.3.0
+  flutter_tts: ^4.2.5
   permission_handler: ^11.0.0
   
   # AI and ML
@@ -57,7 +57,7 @@ dependencies:
   path_provider: ^2.1.0
   
   # Networking
-  http: ^1.1.0
+  http: ^1.2.0
   dio: ^5.4.0
   
   # Animation and UI

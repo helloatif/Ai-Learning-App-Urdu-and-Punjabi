@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../themes/app_theme.dart';
@@ -55,7 +56,7 @@ class _AdaptiveQuizScreenState extends State<AdaptiveQuizScreen>
   }
 
   void _generateQuestions() {
-    _questions = [];
+    _questions = <QuizQuestion>[];
     final words = widget.lessonData.words;
 
     // Get language from user provider
@@ -63,31 +64,26 @@ class _AdaptiveQuizScreenState extends State<AdaptiveQuizScreen>
     final language = userProvider.currentUser?.selectedLanguage ?? 'urdu';
     final languageLabel = language == 'urdu' ? 'Urdu' : 'Punjabi';
 
-    // Generate 5 questions from lesson vocabulary
-    final selectedWords = words.length <= 5
-        ? words
-        : (words.toList()..shuffle()).take(5).toList();
+    // Select up to 5 words for the quiz
+    final selectedWords = words.length <= 5 ? words : words.sublist(0, 5);
 
-    for (var word in selectedWords) {
-      // Create other options from the same lesson
-      final otherWords = words.where((w) => w.english != word.english).toList();
-      otherWords.shuffle();
+    final rnd = Random();
+    for (final vocab in selectedWords) {
+      // Build options: correct english + 3 random distractors
+      final distractors = words.where((w) => w.english != vocab.english).toList();
+      distractors.shuffle(rnd);
+      final options = <String>[vocab.english];
+      options.addAll(distractors.take(3).map((d) => d.english));
+      options.shuffle(rnd);
 
-      final options = [
-        word.english,
-        ...otherWords.take(3).map((w) => w.english),
-      ]..shuffle();
-
-      _questions.add(
-        QuizQuestion(
-          id: word.urdu,
-          question: 'What is the English translation of "${word.urdu}"?',
-          options: options,
-          correctAnswer: word.english,
-          urduWord: word.urdu,
-          languageLabel: languageLabel,
-        ),
-      );
+      _questions.add(QuizQuestion(
+        id: vocab.urdu,
+        question: vocab.urdu,
+        options: options,
+        correctAnswer: vocab.english,
+        urduWord: vocab.urdu,
+        languageLabel: languageLabel,
+      ));
     }
   }
 
@@ -298,7 +294,7 @@ class _AdaptiveQuizScreenState extends State<AdaptiveQuizScreen>
   Widget build(BuildContext context) {
     if (_questions.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Quiz')),
+        appBar: AppBar(title: Text(widget.chapter.titleEnglish), centerTitle: true),
         body: const Center(child: Text('No questions available')),
       );
     }
@@ -323,7 +319,7 @@ class _AdaptiveQuizScreenState extends State<AdaptiveQuizScreen>
             children: [
               // Header
               Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
                 child: Column(
                   children: [
                     Row(
@@ -333,19 +329,7 @@ class _AdaptiveQuizScreenState extends State<AdaptiveQuizScreen>
                           icon: const Icon(Icons.close_rounded),
                           color: AppTheme.textDark,
                         ),
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: LinearProgressIndicator(
-                              value: progress,
-                              backgroundColor: Colors.grey.shade200,
-                              valueColor: const AlwaysStoppedAnimation(
-                                AppTheme.primaryGreen,
-                              ),
-                              minHeight: 12,
-                            ),
-                          ),
-                        ),
+                        Expanded(child: SizedBox()),
                         const SizedBox(width: 12),
                         Text(
                           '${_currentQuestionIndex + 1}/${_questions.length}',
@@ -356,6 +340,35 @@ class _AdaptiveQuizScreenState extends State<AdaptiveQuizScreen>
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4F84FF),
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Text(
+                          widget.chapter.titleEnglish,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -378,10 +391,28 @@ class _AdaptiveQuizScreenState extends State<AdaptiveQuizScreen>
                       ],
                     ),
                   ],
-                ),
-              ),
+                    ),
+                  ),
 
-              // Question Card
+                  // Progress bar
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.0, end: progress),
+                      duration: const Duration(milliseconds: 300),
+                      builder: (context, value, _) => ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: value,
+                          minHeight: 8,
+                          backgroundColor: Colors.white.withOpacity(0.6),
+                          valueColor: const AlwaysStoppedAnimation(Color(0xFF4F84FF)),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Question Card
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
@@ -391,146 +422,124 @@ class _AdaptiveQuizScreenState extends State<AdaptiveQuizScreen>
                       children: [
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(28),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                           decoration: BoxDecoration(
-                            color: AppTheme.white,
-                            borderRadius: BorderRadius.circular(24),
+                            color: const Color(0xFF4F84FF),
+                            borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(
-                                color: AppTheme.primaryGreen.withValues(alpha: 0.1),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
                               ),
                             ],
                           ),
-                          child: Column(
-                            children: [
-                              const Icon(
-                                Icons.translate_rounded,
-                                size: 48,
-                                color: AppTheme.blue,
+                          child: Center(
+                            child: Text(
+                              currentQuestion.question,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                height: 1.35,
                               ),
-                              const SizedBox(height: 20),
-                              Text(
-                                currentQuestion.question,
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.textDark,
-                                  height: 1.4,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                currentQuestion.urduWord,
-                                style: const TextStyle(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.primaryGreen,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 24),
+                            ),
 
-                        // Answer Options
-                        ...currentQuestion.options.asMap().entries.map((entry) {
-                          final index = entry.key;
-                          final option = entry.value;
-                          final isSelected = _selectedAnswer == option;
-                          final isCorrect =
-                              option == currentQuestion.correctAnswer;
+                            const SizedBox(height: 12),
 
-                          Color cardColor = AppTheme.white;
-                          Color borderColor = Colors.grey.shade300;
-
-                          if (_showResult && isSelected) {
-                            if (isCorrect) {
-                              cardColor = AppTheme.primaryGreen.withValues(alpha: 0.1);
-                              borderColor = AppTheme.primaryGreen;
-                            } else {
-                              cardColor = AppTheme.red.withValues(alpha: 0.1);
-                              borderColor = AppTheme.red;
-                            }
-                          } else if (_showResult && isCorrect) {
-                            cardColor = AppTheme.primaryGreen.withOpacity(0.1);
-                                                        cardColor = AppTheme.primaryGreen.withValues(alpha: 0.1);
-                            borderColor = AppTheme.primaryGreen;
-                          }
-
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: InkWell(
-                              onTap: _showResult
-                                  ? null
-                                  : () => _answerQuestion(option),
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: cardColor,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: borderColor,
-                                    width: 2,
+                            // Progress bar (below the question)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0.0, end: progress),
+                                duration: const Duration(milliseconds: 300),
+                                builder: (context, value, _) => ClipRRect(
+                                  borderRadius: BorderRadius.circular(99),
+                                  child: LinearProgressIndicator(
+                                    value: value,
+                                    minHeight: 8,
+                                    backgroundColor: Colors.white.withOpacity(0.6),
+                                    valueColor: const AlwaysStoppedAnimation(Color(0xFF4F84FF)),
                                   ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: BoxDecoration(
-                                        color:
-                                            _showResult &&
-                                                (isSelected || isCorrect)
-                                            ? (isCorrect
-                                                  ? AppTheme.primaryGreen
-                                                  : AppTheme.red)
-                                            : Colors.grey.shade200,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Center(
-                                        child:
-                                            _showResult &&
-                                                (isSelected || isCorrect)
-                                            ? Icon(
-                                                isCorrect
-                                                    ? Icons.check
-                                                    : Icons.close,
-                                                color: AppTheme.white,
-                                                size: 20,
-                                              )
-                                            : Text(
-                                                String.fromCharCode(65 + index),
-                                                style: TextStyle(
-                                                  fontSize: 16,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: Colors.grey.shade600,
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Text(
-                                        option,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppTheme.textDark,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
                                 ),
                               ),
                             ),
-                          );
-                        }),
+
+                            const SizedBox(height: 24),
+
+                        // Answer Options - two-column grid
+                        GridView.count(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          childAspectRatio: 1.15,
+                          children: currentQuestion.options.asMap().entries.map((entry) {
+                            final index = entry.key;
+                            final option = entry.value;
+                            final isSelected = _selectedAnswer == option;
+                            final isCorrect = option == currentQuestion.correctAnswer;
+
+                            Color cardColor = Colors.white;
+                            Color borderColor = const Color(0xFF4F84FF).withOpacity(0.35);
+
+                            if (_showResult) {
+                              if (isCorrect) {
+                                cardColor = Colors.green.withOpacity(0.16);
+                                borderColor = Colors.green.shade700;
+                              } else if (isSelected) {
+                                cardColor = AppTheme.red.withValues(alpha: 0.1);
+                                borderColor = AppTheme.red;
+                              }
+                            } else if (isSelected) {
+                              cardColor = const Color(0xFF4F84FF).withValues(alpha: 0.1);
+                              borderColor = const Color(0xFF4F84FF);
+                            }
+
+                            return InkWell(
+                              onTap: _showResult ? null : () => _answerQuestion(option),
+                              borderRadius: BorderRadius.circular(24),
+                              child: Container(
+                                constraints: const BoxConstraints(minHeight: 120),
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                                decoration: BoxDecoration(
+                                  color: cardColor,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: borderColor,
+                                      width: isSelected || (_showResult && isCorrect) ? 3 : 2,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF4F84FF).withOpacity(0.06),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    option,
+                                    maxLines: 2,
+                                    textAlign: TextAlign.center,
+                                    textDirection: TextDirection.rtl,
+                                    style: TextStyle(
+                                      fontSize: 21,
+                                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                      height: 1.25,
+                                      color: AppTheme.textDark,
+                                      fontFamily: 'NotoNastaliqUrdu',
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ],
                     ),
                   ),

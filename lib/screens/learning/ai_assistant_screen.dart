@@ -1,238 +1,419 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../themes/app_theme.dart';
-import '../../services/ai_assistant_service.dart';
-import '../../services/voice_service.dart';
-import '../../providers/user_provider.dart';
+import 'dart:async';
+import 'dart:convert';
 
-class AIAssistantScreen extends StatefulWidget {
-  const AIAssistantScreen({super.key});
+import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:http/http.dart' as http;
+import 'package:speech_to_text/speech_to_text.dart';
+
+class AiAssistantScreen extends StatefulWidget {
+  const AiAssistantScreen({super.key});
 
   @override
-  State<AIAssistantScreen> createState() => _AIAssistantScreenState();
+  State<AiAssistantScreen> createState() => _AiAssistantScreenState();
 }
 
-class _AIAssistantScreenState extends State<AIAssistantScreen> {
-  final List<ChatMessage> _messages = [];
-  final TextEditingController _textController = TextEditingController();
+class _AiAssistantScreenState extends State<AiAssistantScreen>
+    with SingleTickerProviderStateMixin {
+  static const String _geminiApiKey = String.fromEnvironment(
+    'GCP_API_KEY',
+    defaultValue: '',
+  );
+  static const String _systemPrompt =
+      'You are a helpful, friendly multilingual language tutor. Automatically detect the user\'s input language (Urdu, Punjabi, Roman Urdu, Roman Punjabi, or English), understand their question or problem, and reply to them naturally and fluently using that exact same language and script. If they speak in Urdu, reply in Urdu. If they speak in Punjabi, reply in Punjabi. If they speak in Roman Urdu or Roman Punjabi, reply in Roman Urdu or Roman Punjabi. If they speak in English, reply in English. Keep your explanations simple, short, and clear.';
+
+  final SpeechToText _speechToText = SpeechToText();
+  final FlutterTts _flutterTts = FlutterTts();
+  final List<Map<String, String>> _messages = <Map<String, String>>[];
   final ScrollController _scrollController = ScrollController();
-  bool _isLoading = false;
+
+  late final AnimationController _micAnimationController;
+  late final Animation<double> _micPulseAnimation;
+
   bool _isListening = false;
+  bool _isSending = false;
+  bool _speechEnabled = false;
+  String _lastFinalTranscript = '';
+  String _speechLocaleId = 'en_US';
 
   @override
   void initState() {
     super.initState();
-    _addWelcomeMessage();
+    _micAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _micPulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
+      CurvedAnimation(
+        parent: _micAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    _messages.add(<String, String>{
+      'role': 'assistant',
+      'text': 'Assalam-o-Alaikum! Main aap ka Urdu aur Punjabi coach hoon. Mic dabaiye aur bolna shuru kijiye.',
+    });
+
+    _initializeServices();
   }
 
-  void _addWelcomeMessage() {
+  Future<void> _initializeServices() async {
+    _speechEnabled = await _speechToText.initialize(
+      onStatus: (status) {
+        if ((status == 'done' || status == 'notListening') && mounted) {
+          setState(() => _isListening = false);
+        }
+      },
+      onError: (error) {
+        if (!mounted) return;
+        setState(() => _isListening = false);
+        _showSnackBar(
+          error.errorMsg.isNotEmpty
+              ? error.errorMsg
+              : 'Speech recognition error',
+        );
+      },
+    );
+
+    await _configureTtsForLanguage('en');
+    await _flutterTts.setPitch(1.0);
+  }
+
+  Future<void> _toggleListening() async {
+    if (_isSending) return;
+
+    if (_isListening) {
+      await _speechToText.stop();
+      if (mounted) {
+        setState(() => _isListening = false);
+      }
+      return;
+    }
+
+    if (!_speechEnabled) {
+      _showSnackBar('Speech recognition is not available on this device.');
+      return;
+    }
+
     setState(() {
-      _messages.add(
-        ChatMessage(
-          text:
-              'Hello! I\'m here to help you with Urdu or Punjabi. Ask me anything about the language!',
-          isUser: false,
-        ),
+      _isListening = true;
+      _lastFinalTranscript = '';
+    });
+
+    await _speechToText.listen(
+      localeId: _speechLocaleId,
+      listenFor: const Duration(seconds: 25),
+      pauseFor: const Duration(seconds: 3),
+      onResult: (result) {
+        if (!result.finalResult) {
+          return;
+        }
+
+        final transcript = result.recognizedWords.trim();
+        if (transcript.isEmpty || transcript == _lastFinalTranscript) {
+          return;
+        }
+
+        _lastFinalTranscript = transcript;
+        unawaited(_speechToText.stop());
+
+        if (mounted) {
+          setState(() => _isListening = false);
+        }
+
+        unawaited(_sendMessage(transcript));
+      },
+    );
+  }
+
+  Future<void> _sendMessage(String text) async {
+    final input = text.trim();
+    if (input.isEmpty || _isSending) {
+      return;
+    }
+
+    setState(() {
+      _messages.add(<String, String>{'role': 'user', 'text': input});
+      _isSending = true;
+    });
+    _scrollToBottom();
+
+    try {
+      final responseText = await _requestGeminiResponse(input);
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(<String, String>{
+          'role': 'assistant',
+          'text': responseText,
+        });
+        _isSending = false;
+      });
+      _scrollToBottom();
+
+      await _applyLanguageMode(responseText);
+      await _flutterTts.stop();
+      await _flutterTts.speak(responseText);
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(<String, String>{
+          'role': 'assistant',
+          'text': 'Maaf kijiye, abhi jawab generate nahi ho saka. Dobara koshish karein.',
+        });
+        _isSending = false;
+      });
+      _scrollToBottom();
+    }
+  }
+
+  Future<String> _requestGeminiResponse(String prompt) async {
+    // Stable direct endpoint for gemini-2.5-flash on v1beta
+    final uri = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_geminiApiKey',
+    );
+
+    // 1. Build the conversation log mapping safely (No unsupported payload fields)
+    final List<Map<String, dynamic>> structuredContents = [];
+
+    // Prime the chat with the system prompt as a normal user turn so the server accepts the payload.
+    structuredContents.add({
+      'role': 'user',
+      'parts': [
+        {'text': 'System Instruction: $_systemPrompt'}
+      ]
+    });
+
+    structuredContents.add({
+      'role': 'model',
+      'parts': [
+        {'text': 'Understood. I will act as your multilingual tutor.'}
+      ]
+    });
+
+    for (final msg in _messages) {
+      final String textContent = (msg['text'] ?? '').trim();
+      if (textContent.isEmpty) continue;
+
+      // Skip the initial placeholder greeting message so it doesn't pollute the history context
+      if (textContent.startsWith('Assalam-o-Alaikum! Main aap ka Urdu')) continue;
+
+      structuredContents.add({
+        'role': msg['role'] == 'user' ? 'user' : 'model',
+        'parts': [
+          {'text': textContent}
+        ]
+      });
+    }
+
+    // 2. Add the user's latest spoken microphone input line
+    structuredContents.add({
+      'role': 'user',
+      'parts': [
+        {'text': prompt.trim()}
+      ]
+    });
+
+    // 2. Package only the contents payload; the API has rejected explicit system instruction fields.
+    final Map<String, dynamic> jsonPayload = {
+      'contents': structuredContents,
+    };
+
+    final response = await http.post(
+      uri,
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode(jsonPayload),
+    );
+
+    debugPrint('Gemini status: ${response.statusCode}');
+    debugPrint('Gemini response body: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final candidates = data['candidates'] as List<dynamic>?;
+      final content = candidates?.first?['content'] as Map<String, dynamic>?;
+      final parts = content?['parts'] as List<dynamic>?;
+      final text = parts?.first?['text'] as String?;
+      return (text == null || text.trim().isEmpty) ? 'No text generated' : text.trim();
+    } else {
+      throw Exception('Server rejected request with status: ${response.statusCode}');
+    }
+  }
+
+  Future<void> _applyLanguageMode(String text) async {
+    final languageCode = _detectLanguageCode(text);
+    _speechLocaleId = languageCode == 'ur'
+        ? 'ur_PK'
+        : languageCode == 'pa'
+            ? 'pa_IN'
+            : 'en_US';
+    await _configureTtsForLanguage(languageCode);
+  }
+
+  String _detectLanguageCode(String text) {
+    if (RegExp(r'[\u0600-\u06FF]').hasMatch(text)) {
+      return 'ur';
+    }
+
+    if (RegExp(r'[\u0A00-\u0A7F]').hasMatch(text)) {
+      return 'pa';
+    }
+
+    final lowered = text.toLowerCase();
+    if (lowered.contains('tusi') ||
+        lowered.contains('tuha') ||
+        lowered.contains('ki haal') ||
+        lowered.contains('ki haal hai') ||
+        lowered.contains('haan ji') ||
+        lowered.contains('nahin')) {
+      return 'pa';
+    }
+
+    if (lowered.contains('aap') ||
+        lowered.contains('kya') ||
+        lowered.contains('kyun') ||
+        lowered.contains('main') ||
+        lowered.contains('hai')) {
+      return 'ur';
+    }
+
+    return 'en';
+  }
+
+  Future<void> _configureTtsForLanguage(String languageCode) async {
+    final locale = languageCode == 'ur'
+        ? 'ur-PK'
+        : languageCode == 'pa'
+            ? 'pa-IN'
+            : 'en-US';
+
+    try {
+      await _flutterTts.setLanguage(locale);
+    } catch (_) {
+      await _flutterTts.setLanguage('en-US');
+    }
+
+    await _flutterTts.setSpeechRate(languageCode == 'ur' ? 0.47 : 0.5);
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) {
+        return;
+      }
+
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent + 80,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
       );
     });
   }
 
-  Future<void> _sendMessage(String text) async {
-    if (text.trim().isEmpty) return;
-
-    setState(() {
-      _messages.add(ChatMessage(text: text, isUser: true));
-      _isLoading = true;
-    });
-
-    _textController.clear();
-    _scrollToBottom();
-
-    try {
-      final response = await AIAssistantService.getResponse(text);
-      setState(() {
-        _messages.add(ChatMessage(text: response, isUser: false));
-        _isLoading = false;
-      });
-      _scrollToBottom();
-
-      // Speak the response
-      final ok = await VoiceService.speak(response, 'en-US');
-      if (!ok && mounted && VoiceService.lastTtsError.isNotEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(VoiceService.lastTtsError)));
-      }
-    } catch (e) {
-      setState(() {
-        _messages.add(
-          ChatMessage(
-            text: 'Sorry, I encountered an error. Please try again.',
-            isUser: false,
-          ),
-        );
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _startListening() async {
-    setState(() => _isListening = true);
-
-    final result = await VoiceService.listen(
-      language: 'en-US',
-      onStart: () {
-        print('Listening started...');
-      },
-      onResult: (text) {
-        if (text.isNotEmpty) {
-          _sendMessage(text);
-        }
-      },
-      onStop: () {
-        setState(() => _isListening = false);
-      },
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
-
-    if (result != null && result.isNotEmpty) {
-      _sendMessage(result);
-    }
-
-    setState(() => _isListening = false);
   }
 
-  void _scrollToBottom() {
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+  @override
+  void dispose() {
+    _micAnimationController.dispose();
+    _scrollController.dispose();
+    _speechToText.stop();
+    _flutterTts.stop();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = Provider.of<UserProvider>(context);
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI Assistant'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () {
-              setState(() {
-                _messages.clear();
-                AIAssistantService.clearHistory();
-                _addWelcomeMessage();
-              });
-            },
-            tooltip: 'Clear chat',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Learning recommendations banner
-          _buildRecommendationsBanner(userProvider),
-
-          // Chat messages
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: _messages.length,
-              itemBuilder: (context, index) {
-                return _buildMessageBubble(_messages[index]);
-              },
-            ),
-          ),
-
-          // Loading indicator
-          if (_isLoading)
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: CircularProgressIndicator(),
-            ),
-
-          // Input area
-          _buildInputArea(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecommendationsBanner(UserProvider userProvider) {
-    final user = userProvider.currentUser;
-    final recommendations = LearningRecommendationService.getRecommendations(
-      completedLessons: 5, // TODO: Track from database
-      totalPoints: user?.points ?? 0,
-      streak: 0, // TODO: Track from database
-      weakestArea: 'Pronunciation', // TODO: Calculate from user data
-    );
-
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.purple.shade100, Colors.blue.shade100],
+        centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        borderRadius: BorderRadius.circular(12),
+        title: const Text('AI Regional Tutor'),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Your Learning Tips',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          ),
-          const SizedBox(height: 8),
-          ...recommendations
-              .take(2)
-              .map(
-                (rec) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(rec, style: const TextStyle(fontSize: 12)),
-                ),
-              ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessageBubble(ChatMessage message) {
-    return Align(
-      alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
-        decoration: BoxDecoration(
-          color: message.isUser ? Colors.blue.shade500 : Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(20),
-        ),
+      body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              message.text,
-              style: TextStyle(
-                color: message.isUser ? Colors.white : Colors.black87,
-                fontSize: 15,
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                itemCount: _messages.length,
+                itemBuilder: (context, index) {
+                  final message = _messages[index];
+                  return _ChatBubble(
+                    text: message['text'] ?? '',
+                    isUser: message['role'] == 'user',
+                  );
+                },
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              _formatTime(message.timestamp),
-              style: TextStyle(
-                color: message.isUser ? Colors.white70 : Colors.black45,
-                fontSize: 10,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
+              child: Column(
+                children: [
+                  AnimatedBuilder(
+                    animation: _micPulseAnimation,
+                    builder: (context, child) {
+                      final scale = _isListening ? _micPulseAnimation.value : 1.0;
+                      return Transform.scale(scale: scale, child: child);
+                    },
+                    child: GestureDetector(
+                      onTap: _toggleListening,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        width: 88,
+                        height: 88,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: _isListening
+                                ? const [Color(0xFFFF5A7A), Color(0xFFFF8A5B)]
+                                : const [Color(0xFF4F84FF), Color(0xFF82EEFD)],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (_isListening
+                                      ? const Color(0xFFFF5A7A)
+                                      : const Color(0xFF4F84FF))
+                                  .withOpacity(0.35),
+                              blurRadius: 22,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          _isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                          color: Colors.white,
+                          size: 38,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _isListening ? 'Listening...' : 'Tap to speak',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  if (_isSending) ...<Widget>[
+                    const SizedBox(height: 10),
+                    const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
@@ -240,141 +421,45 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
       ),
     );
   }
-
-  Widget _buildInputArea() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Quick action buttons
-          IconButton(
-            icon: const Icon(Icons.help_outline),
-            onPressed: () {
-              _sendMessage('Give me learning tips');
-            },
-            tooltip: 'Get tips',
-          ),
-
-          // Text input
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              cursorColor: AppTheme.primaryGreen,
-              style: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? AppTheme.textLight
-                    : AppTheme.textDark,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Ask me anything...',
-                hintStyle: TextStyle(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.grey.shade400
-                      : Colors.grey.shade600,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.grey.shade600
-                        : Colors.grey.shade400,
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: const BorderSide(
-                    color: AppTheme.primaryGreen,
-                    width: 2,
-                  ),
-                ),
-                filled: true,
-                fillColor: Theme.of(context).brightness == Brightness.dark
-                    ? AppTheme.darkSurfaceVariant
-                    : Colors.grey.shade100,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-              ),
-              onSubmitted: _sendMessage,
-              textInputAction: TextInputAction.send,
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Voice input button
-          IconButton(
-            icon: Icon(
-              _isListening ? Icons.mic : Icons.mic_none,
-              color: _isListening ? Colors.red : null,
-            ),
-            onPressed: _isListening ? null : _startListening,
-            tooltip: 'Voice input',
-          ),
-
-          // Send button
-          IconButton(
-            icon: const Icon(Icons.send),
-            color: Colors.blue,
-            onPressed: () => _sendMessage(_textController.text),
-            tooltip: 'Send',
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatTime(DateTime time) {
-    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  void dispose() {
-    _textController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
 }
 
-/// Quick action suggestions widget
-class QuickActionChips extends StatelessWidget {
-  final Function(String) onActionSelected;
+class _ChatBubble extends StatelessWidget {
+  final String text;
+  final bool isUser;
 
-  const QuickActionChips({super.key, required this.onActionSelected});
+  const _ChatBubble({required this.text, required this.isUser});
 
   @override
   Widget build(BuildContext context) {
-    final actions = [
-      {'label': 'Translate', 'query': 'How do I translate this?'},
-      {'label': 'Pronunciation', 'query': 'Help me with pronunciation'},
-      {'label': 'Grammar', 'query': 'Explain grammar rules'},
-      {'label': 'Culture', 'query': 'Tell me about Pakistani culture'},
-    ];
-
-    return Wrap(
-      spacing: 8,
-      children: actions.map((action) {
-        return ActionChip(
-          label: Text(action['label']!),
-          onPressed: () => onActionSelected(action['query']!),
-          backgroundColor: Colors.blue.shade50,
-        );
-      }).toList(),
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.82,
+        ),
+        decoration: BoxDecoration(
+          color: isUser ? const Color(0xFF4F84FF) : const Color(0xFFF2F6FF),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isUser ? Colors.white : const Color(0xFF1C2430),
+            fontSize: 15,
+            height: 1.35,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -15,14 +15,9 @@ service cloud.firestore {
 
     // --- Users Collection ---
     match /users/{userId} {
-      // ALLOW READ: All signed-in users can read other profiles. 
-      // This is required so the Leaderboard can see the 'selectedLanguage' of others.
       allow read: if signedIn();
-      
-      // ALLOW WRITE: Only the actual user can update their own profile.
       allow create, update, delete: if isOwner(userId);
 
-      // Apply same rules to sub-collections (like progress or history)
       match /{document=**} {
         allow read: if signedIn();
         allow write: if isOwner(userId);
@@ -31,23 +26,15 @@ service cloud.firestore {
 
     // --- Leaderboard Collection ---
     match /leaderboard/{userId} {
-      // Anyone signed in can see the leaderboard entries
       allow read: if signedIn();
-      
-      // We allow users to update their own leaderboard entry
-      // The Service also uses the current user's token to 'self-heal' their own doc
       allow create, update, delete: if signedIn(); 
     }
 
-    // --- Chapter Lessons Collection ---
-    match /chapters/{chapterId} {
-      allow read: if signedIn();
-      allow write: if false;
-
-      match /lessons/{lessonId} {
-        allow read: if signedIn();
-        allow write: if false;
-      }
+    // --- 🎯 FIX: Allow Reading Chapters and Lessons ---
+    match /chapters/{document=**} {
+      // Allows anyone (even unauthenticated users during testing) to read chapters/lessons
+      allow read: if true; 
+      allow write: if false; // Protects data so nobody can change your lessons layout
     }
 
     // Default deny for anything else

@@ -194,7 +194,11 @@ class QuizGeneratorService {
           words.where((w) => w.urdu != word.urdu).map((w) => w.urdu).toList()
             ..shuffle();
 
-      final options = [word.urdu, ...wrongOptions.take(3)];
+      final options = _buildUniqueOptions(
+        word.urdu,
+        wrongOptions.take(3).toList(),
+        words.map((w) => w.urdu).toList(),
+      );
       options.shuffle();
 
       questions.add(
@@ -222,7 +226,11 @@ class QuizGeneratorService {
                 .toList()
               ..shuffle();
 
-        final engOptions = [word.english, ...wrongEnglish.take(3)];
+        final engOptions = _buildUniqueOptions(
+          word.english,
+          wrongEnglish.take(3).toList(),
+          words.map((w) => w.english).toList(),
+        );
         engOptions.shuffle();
 
         questions.add(
@@ -636,7 +644,11 @@ class QuizGeneratorService {
         );
       }
 
-      final options = [word.urdu, ...distractors.take(3)];
+      final options = _buildUniqueOptions(
+        word.urdu,
+        distractors.take(3).toList(),
+        vocabulary.words.map((w) => w.urdu).toList(),
+      );
       options.shuffle();
 
       questions.add(
@@ -705,7 +717,11 @@ class QuizGeneratorService {
           );
         }
 
-        final engOptions = [word.english, ...engDistractors.take(3)];
+        final engOptions = _buildUniqueOptions(
+          word.english,
+          engDistractors.take(3).toList(),
+          vocabulary.words.map((w) => w.english).toList(),
+        );
         engOptions.shuffle();
 
         questions.add(
@@ -836,6 +852,42 @@ class QuizGeneratorService {
             .toList()
           ..shuffle();
     return candidates.take(count).toList();
+  }
+
+  static List<String> _buildUniqueOptions(
+    String correctAnswer,
+    List<String> distractors,
+    List<String> pool, {
+    int maxOptions = 4,
+  }) {
+    final options = <String>[];
+    final seen = <String>{};
+
+    void addOption(String value) {
+      if (value.isEmpty || seen.contains(value) || options.length >= maxOptions) {
+        return;
+      }
+      seen.add(value);
+      options.add(value);
+    }
+
+    addOption(correctAnswer);
+    for (final distractor in distractors) {
+      addOption(distractor);
+    }
+
+    if (options.length < maxOptions) {
+      for (final candidate in pool) {
+        if (candidate != correctAnswer) {
+          addOption(candidate);
+        }
+        if (options.length >= maxOptions) {
+          break;
+        }
+      }
+    }
+
+    return options;
   }
 
   /// Calculate question difficulty based on distractor similarity

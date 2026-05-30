@@ -275,7 +275,11 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> {
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: () => _speakResponse(language),
-                        icon: const Icon(Icons.volume_up),
+                        icon: Image.asset(
+                          'assets/icons/3dicons-megaphone-dynamic-color.png',
+                          width: 18,
+                          height: 18,
+                        ),
                         label: const Text('Listen Again'),
                       ),
                     ),
