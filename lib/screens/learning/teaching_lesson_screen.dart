@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../../themes/app_theme.dart';
@@ -521,38 +522,58 @@ class _TeachingLessonScreenState extends State<TeachingLessonScreen> with Ticker
                   border: Border.all(color: Colors.white10, width: 1),
                   boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.45), blurRadius: 30, offset: const Offset(0, 16))],
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Spacer(),
-                    const Icon(Icons.celebration, size: 88, color: _accentBlue),
-                    const SizedBox(height: 18),
-                    Text(
-                      'Lesson Complete!',
-                      textAlign: TextAlign.center,
-                      style: _italic(const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w700)),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'You learned ${_lessonWords.length} words',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white70, fontSize: 18),
-                    ),
-                    const Spacer(),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _accentBlue,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      Positioned(
+                        top: -180,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: SizedBox(
+                            width: 520,
+                            height: 520,
+                            child: Lottie.asset(
+                              'assets/icons/animations/c22b3edc-116e-11ee-b29e-6b53b36a56ea.json',
+                              fit: BoxFit.contain,
+                              repeat: true,
+                            ),
+                          ),
                         ),
-                        child: Text('Continue', style: _italic(const TextStyle(fontSize: 18))),
                       ),
-                    ),
-                  ],
-                ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(height: 188),
+                          Text(
+                            'Lesson Complete!',
+                            textAlign: TextAlign.center,
+                            style: _italic(const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w700)),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'You learned ${_lessonWords.length} words',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white70, fontSize: 18),
+                          ),
+                          const SizedBox(height: 14),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _accentBlue,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                              ),
+                              child: Text('Continue', style: _italic(const TextStyle(fontSize: 18))),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
               ),
             ),
           ),
