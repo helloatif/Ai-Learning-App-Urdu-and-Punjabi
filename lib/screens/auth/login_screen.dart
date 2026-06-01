@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'package:rive/rive.dart' as rive;
 import '../../themes/app_theme.dart';
 import '../../services/firebase_service.dart';
 import '../../services/language_onboarding_service.dart';
@@ -27,29 +27,41 @@ class _LoginScreenState extends State<LoginScreen>
   bool _obscurePassword = true;
   bool _isLoading = false;
   bool _rememberMe = false;
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<Offset> _slideAnimation;
+  Future<rive.File?>? _riveFileFuture;
+  String? _riveLoadError;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
-    );
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
-          CurvedAnimation(
-            parent: _animationController,
-            curve: Curves.easeOutCubic,
-          ),
-        );
-    _animationController.forward();
     _loadRememberMePreference();
+    _riveFileFuture = _loadRiveFileSafely();
+  }
+
+  Future<rive.File?> _loadRiveFileSafely() async {
+    try {
+      final file = await rive.File.asset(
+        'assets/icons/animations/16499-31053-bubble-gum-boy.riv',
+        riveFactory: rive.Factory.rive,
+      );
+      debugPrint('Rive file loaded successfully: bubble-gum-boy.riv');
+      return file;
+    } on rive.RiveFileLoaderException catch (e) {
+      debugPrint('Rive load failed (FileLoaderException): $e');
+      if (mounted) {
+        setState(() {
+          _riveLoadError = e.toString();
+        });
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Rive load failed: $e');
+      if (mounted) {
+        setState(() {
+          _riveLoadError = e.toString();
+        });
+      }
+      return null;
+    }
   }
 
   Future<void> _loadRememberMePreference() async {
@@ -89,7 +101,6 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   void dispose() {
-    _animationController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -312,6 +323,7 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final scale = MediaQuery.of(context).size.height / 812;
+    _riveFileFuture ??= _loadRiveFileSafely();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -365,13 +377,111 @@ class _LoginScreenState extends State<LoginScreen>
                         ),
                         SizedBox(height: 50 * uiScale),
                         Center(
-                          child: Text(
-                            'Welcome',
-                            style: TextStyle(
-                              fontSize: 42 * uiScale,
-                              fontWeight: FontWeight.w800,
-                              color: AppTheme.primaryGreen,
-                              fontStyle: FontStyle.italic,
+                          child: SizedBox(
+                            height: 180 * uiScale,
+                            // ignore: experimental_member_use
+                            child: rive.RivePanel(
+                              backgroundColor: const Color(0xFFD9D9D9),
+                              child: FutureBuilder<rive.File?>(
+                                future: _riveFileFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.waiting) {
+                                    return Container(
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.blue.shade200, width: 2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        'Loading Rive...',
+                                        style: TextStyle(
+                                          color: Colors.blueGrey,
+                                          fontSize: 14 * uiScale,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  if (snapshot.hasError || snapshot.data == null) {
+                                    final errorText = _riveLoadError ?? snapshot.error.toString();
+                                    return Container(
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.red.shade300, width: 2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        'Rive Load Error: $errorText',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Colors.red.shade700,
+                                          fontSize: 12 * uiScale,
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  return rive.RiveWidgetBuilder(
+                                    fileLoader: rive.FileLoader.fromFile(
+                                      snapshot.data!,
+                                      riveFactory: rive.Factory.rive,
+                                    ),
+                                    artboardSelector: rive.ArtboardSelector.byName('Artboard'),
+                                    stateMachineSelector:
+                                        rive.StateMachineSelector.byName('State Machine 1'),
+                                    onLoaded: (state) {
+                                      debugPrint('Rive loaded on transparent panel: ${state.controller.runtimeType}');
+                                    },
+                                    onFailed: (error, stackTrace) {
+                                      debugPrint('Rive panel render failed: $error');
+                                    },
+                                    builder: (context, state) {
+                                      if (state is rive.RiveLoaded) {
+                                        return rive.RiveWidget(
+                                          controller: state.controller,
+                                          fit: rive.Fit.contain,
+                                          useSharedTexture: true,
+                                        );
+                                      }
+
+                                      if (state is rive.RiveFailed) {
+                                        return Container(
+                                          alignment: Alignment.center,
+                                          decoration: BoxDecoration(
+                                            border: Border.all(color: Colors.red.shade300, width: 2),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            'Rive Load Error: ${state.error}',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: Colors.red.shade700,
+                                              fontSize: 12 * uiScale,
+                                            ),
+                                          ),
+                                        );
+                                      }
+
+                                      return Container(
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: Colors.blue.shade200, width: 2),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          'Loading Rive...',
+                                          style: TextStyle(
+                                            color: Colors.blueGrey,
+                                            fontSize: 14 * uiScale,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
                             ),
                           ),
                         ),
