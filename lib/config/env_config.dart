@@ -51,4 +51,26 @@ class EnvConfig {
     }
     return huggingFaceToken.trim();
   }
+
+  /// Gemini API key from environment variable or local config.
+  static const String geminiApiKey = String.fromEnvironment(
+    'GCP_API_KEY',
+    defaultValue: '',
+  );
+
+  static String getGeminiApiKey() {
+    if (geminiApiKey.trim().isNotEmpty) {
+      return geminiApiKey.trim();
+    }
+
+    final apiKey = ApiKeys.geminiApiKey.trim();
+    if (apiKey.isNotEmpty && !apiKey.startsWith('YOUR_')) {
+      return apiKey;
+    }
+
+    throw Exception(
+      'Gemini API key not configured. Add ApiKeys.geminiApiKey or run with '
+      '--dart-define=GCP_API_KEY=your_key_here',
+    );
+  }
 }

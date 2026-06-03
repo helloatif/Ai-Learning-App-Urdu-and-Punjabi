@@ -193,6 +193,12 @@ class MLVocabularyService {
   /// Detect language using Hugging Face Inference API
   static Future<LanguageDetectionResult> detectLanguage(String text) async {
     try {
+      if (kIsWeb) {
+        // Hugging Face browser requests can fail on web because of fetch/CORS
+        // restrictions. Use the local fallback so the assistant keeps working.
+        return _fallbackLanguageDetection(text);
+      }
+
       final response = await http
           .post(
             Uri.parse(_hfApiUrl),

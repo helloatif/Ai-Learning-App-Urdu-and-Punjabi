@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:http/http.dart' as http;
 import 'package:speech_to_text/speech_to_text.dart';
+
+import '../../services/ai_assistant_service.dart';
 
 class AiAssistantScreen extends StatefulWidget {
   const AiAssistantScreen({super.key});
@@ -15,46 +15,51 @@ class AiAssistantScreen extends StatefulWidget {
 
 class _AiAssistantScreenState extends State<AiAssistantScreen>
     with SingleTickerProviderStateMixin {
-  static const String _geminiApiKey = String.fromEnvironment(
-    'GCP_API_KEY',
-    defaultValue: '',
-  );
-  static const String _systemPrompt =
-      'You are a helpful, friendly multilingual language tutor. Automatically detect the user\'s input language (Urdu, Punjabi, Roman Urdu, Roman Punjabi, or English), understand their question or problem, and reply to them naturally and fluently using that exact same language and script. If they speak in Urdu, reply in Urdu. If they speak in Punjabi, reply in Punjabi. If they speak in Roman Urdu or Roman Punjabi, reply in Roman Urdu or Roman Punjabi. If they speak in English, reply in English. Keep your explanations simple, short, and clear.';
-
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  final ScrollController _scrollController = ScrollController();
   final SpeechToText _speechToText = SpeechToText();
   final FlutterTts _flutterTts = FlutterTts();
-  final List<Map<String, String>> _messages = <Map<String, String>>[];
-  final ScrollController _scrollController = ScrollController();
+  final List<_ChatItem> _messages = <_ChatItem>[];
 
-  late final AnimationController _micAnimationController;
-  late final Animation<double> _micPulseAnimation;
-
-  bool _isListening = false;
   bool _isSending = false;
+  bool _isListening = false;
   bool _speechEnabled = false;
+  bool _isTyping = false;
   String _lastFinalTranscript = '';
-  String _speechLocaleId = 'en_US';
+
+  /// Voice input language chosen by the user. 'auto' uses the device default.
+  String _voiceLanguage = 'auto';
+  List<String> _availableLocaleIds = const [];
+
+  static const Map<String, String> _voiceLanguageLabels = {
+    'auto': 'Auto (device)',
+    'en': 'English',
+    'ur': 'Urdu',
+    'pa': 'Punjabi',
+    'ar': 'Arabic',
+    'de': 'German',
+    'zh': 'Chinese',
+  };
 
   @override
   void initState() {
     super.initState();
-    _micAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-    _micPulseAnimation = Tween<double>(begin: 1.0, end: 1.08).animate(
-      CurvedAnimation(
-        parent: _micAnimationController,
-        curve: Curves.easeInOut,
+    AIAssistantService.clearHistory();
+    _messages.add(
+      const _ChatItem(
+        role: _ChatRole.assistant,
+        text:
+            'Asalam o Alikum Ask me in any language i am here to assist you',
       ),
     );
-
-    _messages.add(<String, String>{
-      'role': 'assistant',
-      'text': 'Assalam-o-Alaikum! Main aap ka Urdu aur Punjabi coach hoon. Mic dabaiye aur bolna shuru kijiye.',
-    });
-
+    _messages.add(
+      const _ChatItem(
+        role: _ChatRole.assistant,
+        text:
+            'Examples: What does "Main theek hoon" mean? | Explain this Punjabi sentence | Translate this Urdu line to Arabic | What does "i am fine" mean in Urdu and Punjabi?',
+      ),
+    );
     _initializeServices();
   }
 
@@ -76,8 +81,104 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
       },
     );
 
-    await _configureTtsForLanguage('en');
+    if (_speechEnabled) {
+      try {
+        final locales = await _speechToText.locales();
+        _availableLocaleIds = locales.map((l) => l.localeId).toList();
+      } catch (_) {
+        _availableLocaleIds = const [];
+      }
+    }
+
     await _flutterTts.setPitch(1.0);
+    if (mounted) setState(() {});
+  }
+
+  /// Resolve the best device locale id for the chosen voice language.
+  /// Returns null to let the recognizer use the system default.
+  String? _resolveSpeechLocaleId() {
+    if (_voiceLanguage == 'auto' || _availableLocaleIds.isEmpty) {
+      return null;
+    }
+
+    // speech_to_text uses ids like "ur_PK", "pa_IN", "ar_SA", "en_US".
+    final normalized = _voiceLanguage.toLowerCase();
+    for (final id in _availableLocaleIds) {
+      final prefix = id.toLowerCase().split(RegExp(r'[_-]')).first;
+      if (prefix == normalized) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _sendText([String? override, String? ttsLanguageOverride]) async {
+    final input = (override ?? _controller.text).trim();
+    if (input.isEmpty || _isSending) {
+      return;
+    }
+
+    // For voice input we already know the spoken language, so trust it for
+    // text-to-speech (more reliable than guessing German vs English by script).
+    final inputLanguageCode = ttsLanguageOverride ?? _detectLanguageCode(input);
+
+    setState(() {
+      _messages.add(_ChatItem(role: _ChatRole.user, text: input));
+      _isSending = true;
+      _isTyping = true;
+    });
+    _controller.clear();
+    _focusNode.unfocus();
+    _scrollToBottom();
+
+    try {
+      final responseText = await AIAssistantService.getResponse(input);
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(_ChatItem(role: _ChatRole.assistant, text: responseText));
+        _isSending = false;
+        _isTyping = false;
+      });
+      _scrollToBottom();
+
+      await _speakResponse(responseText, inputLanguageCode);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(
+          const _ChatItem(
+            role: _ChatRole.assistant,
+            text: 'Sorry, I could not generate a response just now.',
+          ),
+        );
+        _isSending = false;
+        _isTyping = false;
+      });
+      _scrollToBottom();
+    }
+  }
+
+  Future<void> _speakResponse(String responseText, String languageCode) async {
+    final locale = switch (languageCode) {
+      'ur' => 'ur-PK',
+      'pa' => 'pa-IN',
+      'ar' => 'ar-SA',
+      'zh' => 'zh-CN',
+      'de' => 'de-DE',
+      _ => 'en-US',
+    };
+
+    try {
+      await _flutterTts.setLanguage(locale);
+    } catch (_) {
+      await _flutterTts.setLanguage('en-US');
+    }
+
+    await _flutterTts.setSpeechRate(languageCode == 'ur' ? 0.47 : 0.5);
+    await _flutterTts.stop();
+    await _flutterTts.speak(_sanitizeForSpeech(responseText));
   }
 
   Future<void> _toggleListening() async {
@@ -96,13 +197,20 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
       return;
     }
 
+    if (_voiceLanguage != 'auto' && _resolveSpeechLocaleId() == null) {
+      _showSnackBar(
+        '${_voiceLanguageLabels[_voiceLanguage]} voice pack is not installed '
+        'on this device. Using the default language instead.',
+      );
+    }
+
     setState(() {
       _isListening = true;
       _lastFinalTranscript = '';
     });
 
     await _speechToText.listen(
-      localeId: _speechLocaleId,
+      localeId: _resolveSpeechLocaleId(),
       listenFor: const Duration(seconds: 25),
       pauseFor: const Duration(seconds: 3),
       onResult: (result) {
@@ -122,180 +230,17 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
           setState(() => _isListening = false);
         }
 
-        unawaited(_sendMessage(transcript));
+        final ttsLang = _voiceLanguage == 'auto' ? null : _voiceLanguage;
+        unawaited(_sendText(transcript, ttsLang));
       },
     );
   }
 
-  Future<void> _sendMessage(String text) async {
-    final input = text.trim();
-    if (input.isEmpty || _isSending) {
-      return;
-    }
-
-    setState(() {
-      _messages.add(<String, String>{'role': 'user', 'text': input});
-      _isSending = true;
-    });
-    _scrollToBottom();
-
-    try {
-      final responseText = await _requestGeminiResponse(input);
-      if (!mounted) return;
-
-      setState(() {
-        _messages.add(<String, String>{
-          'role': 'assistant',
-          'text': responseText,
-        });
-        _isSending = false;
-      });
-      _scrollToBottom();
-
-      await _applyLanguageMode(responseText);
-      await _flutterTts.stop();
-      await _flutterTts.speak(responseText);
-    } catch (error) {
-      if (!mounted) return;
-
-      setState(() {
-        _messages.add(<String, String>{
-          'role': 'assistant',
-          'text': 'Maaf kijiye, abhi jawab generate nahi ho saka. Dobara koshish karein.',
-        });
-        _isSending = false;
-      });
-      _scrollToBottom();
-    }
-  }
-
-  Future<String> _requestGeminiResponse(String prompt) async {
-    // Stable direct endpoint for gemini-2.5-flash on v1beta
-    final uri = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$_geminiApiKey',
-    );
-
-    // 1. Build the conversation log mapping safely (No unsupported payload fields)
-    final List<Map<String, dynamic>> structuredContents = [];
-
-    // Prime the chat with the system prompt as a normal user turn so the server accepts the payload.
-    structuredContents.add({
-      'role': 'user',
-      'parts': [
-        {'text': 'System Instruction: $_systemPrompt'}
-      ]
-    });
-
-    structuredContents.add({
-      'role': 'model',
-      'parts': [
-        {'text': 'Understood. I will act as your multilingual tutor.'}
-      ]
-    });
-
-    for (final msg in _messages) {
-      final String textContent = (msg['text'] ?? '').trim();
-      if (textContent.isEmpty) continue;
-
-      // Skip the initial placeholder greeting message so it doesn't pollute the history context
-      if (textContent.startsWith('Assalam-o-Alaikum! Main aap ka Urdu')) continue;
-
-      structuredContents.add({
-        'role': msg['role'] == 'user' ? 'user' : 'model',
-        'parts': [
-          {'text': textContent}
-        ]
-      });
-    }
-
-    // 2. Add the user's latest spoken microphone input line
-    structuredContents.add({
-      'role': 'user',
-      'parts': [
-        {'text': prompt.trim()}
-      ]
-    });
-
-    // 2. Package only the contents payload; the API has rejected explicit system instruction fields.
-    final Map<String, dynamic> jsonPayload = {
-      'contents': structuredContents,
-    };
-
-    final response = await http.post(
-      uri,
-      headers: const {'Content-Type': 'application/json'},
-      body: jsonEncode(jsonPayload),
-    );
-
-    debugPrint('Gemini status: ${response.statusCode}');
-    debugPrint('Gemini response body: ${response.body}');
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final candidates = data['candidates'] as List<dynamic>?;
-      final content = candidates?.first?['content'] as Map<String, dynamic>?;
-      final parts = content?['parts'] as List<dynamic>?;
-      final text = parts?.first?['text'] as String?;
-      return (text == null || text.trim().isEmpty) ? 'No text generated' : text.trim();
-    } else {
-      throw Exception('Server rejected request with status: ${response.statusCode}');
-    }
-  }
-
-  Future<void> _applyLanguageMode(String text) async {
-    final languageCode = _detectLanguageCode(text);
-    _speechLocaleId = languageCode == 'ur'
-        ? 'ur_PK'
-        : languageCode == 'pa'
-            ? 'pa_IN'
-            : 'en_US';
-    await _configureTtsForLanguage(languageCode);
-  }
-
-  String _detectLanguageCode(String text) {
-    if (RegExp(r'[\u0600-\u06FF]').hasMatch(text)) {
-      return 'ur';
-    }
-
-    if (RegExp(r'[\u0A00-\u0A7F]').hasMatch(text)) {
-      return 'pa';
-    }
-
-    final lowered = text.toLowerCase();
-    if (lowered.contains('tusi') ||
-        lowered.contains('tuha') ||
-        lowered.contains('ki haal') ||
-        lowered.contains('ki haal hai') ||
-        lowered.contains('haan ji') ||
-        lowered.contains('nahin')) {
-      return 'pa';
-    }
-
-    if (lowered.contains('aap') ||
-        lowered.contains('kya') ||
-        lowered.contains('kyun') ||
-        lowered.contains('main') ||
-        lowered.contains('hai')) {
-      return 'ur';
-    }
-
-    return 'en';
-  }
-
-  Future<void> _configureTtsForLanguage(String languageCode) async {
-    final locale = languageCode == 'ur'
-        ? 'ur-PK'
-        : languageCode == 'pa'
-            ? 'pa-IN'
-            : 'en-US';
-
-    try {
-      await _flutterTts.setLanguage(locale);
-    } catch (_) {
-      await _flutterTts.setLanguage('en-US');
-    }
-
-    await _flutterTts.setSpeechRate(languageCode == 'ur' ? 0.47 : 0.5);
+  void _applySuggestion(String text) {
+    _controller
+      ..text = text
+      ..selection = TextSelection.collapsed(offset: text.length);
+    _focusNode.requestFocus();
   }
 
   void _scrollToBottom() {
@@ -306,10 +251,45 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
 
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent + 80,
-        duration: const Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 260),
         curve: Curves.easeOut,
       );
     });
+  }
+
+  String _detectLanguageCode(String text) {
+    if (RegExp(r'[\u4E00-\u9FFF]').hasMatch(text)) {
+      return 'zh';
+    }
+
+    if (RegExp(r'[\u0A00-\u0A7F]').hasMatch(text)) {
+      return 'pa';
+    }
+
+    if (RegExp(r'[\u0600-\u06FF]').hasMatch(text)) {
+      if (RegExp(r'[ڑڈٹچپگھ]').hasMatch(text)) {
+        return 'ur';
+      }
+      return 'ar';
+    }
+
+    // Best-effort German detection for Latin text (umlauts / common words).
+    final lower = text.toLowerCase();
+    if (RegExp(r'[äöüß]').hasMatch(lower) ||
+        RegExp(r'\b(was|bedeutet|wie|sagt|ich|bin|auf|der|die|das|und|nicht|heißt)\b')
+            .hasMatch(lower)) {
+      return 'de';
+    }
+
+    return 'en';
+  }
+
+  String _sanitizeForSpeech(String text) {
+    return text
+        .replaceAll(RegExp(r'[*_`~]'), '')
+        .replaceAll(RegExp(r'^[•\-–—]+\s*', multiLine: true), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   void _showSnackBar(String message) {
@@ -320,7 +300,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
 
   @override
   void dispose() {
-    _micAnimationController.dispose();
+    _controller.dispose();
+    _focusNode.dispose();
     _scrollController.dispose();
     _speechToText.stop();
     _flutterTts.stop();
@@ -329,90 +310,193 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
 
   @override
   Widget build(BuildContext context) {
+    const suggestions = <String>[
+      'What does "Main theek hoon" mean?',
+      'Explain this Punjabi sentence',
+      'Translate this Urdu line to Arabic',
+      'Was bedeutet der Satz "tusi kithay ho"?',
+    ];
+
     return Scaffold(
+      backgroundColor: const Color(0xFF0B0F15),
       appBar: AppBar(
+        backgroundColor: const Color(0xFF111827),
+        foregroundColor: Colors.white,
+        elevation: 0,
         centerTitle: true,
+        title: const Text('AI Regional Tutor'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text('AI Regional Tutor'),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Voice input language',
+            icon: const Icon(Icons.record_voice_over_rounded),
+            color: const Color(0xFF111827),
+            onSelected: (value) => setState(() => _voiceLanguage = value),
+            itemBuilder: (context) => _voiceLanguageLabels.entries
+                .map(
+                  (entry) => PopupMenuItem<String>(
+                    value: entry.key,
+                    child: Row(
+                      children: [
+                        Icon(
+                          _voiceLanguage == entry.key
+                              ? Icons.check_circle_rounded
+                              : Icons.circle_outlined,
+                          size: 18,
+                          color: _voiceLanguage == entry.key
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFF94A3B8),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          entry.value,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
           children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFF111827),
+                border: Border(
+                  bottom: BorderSide(color: Color(0xFF1F2937)),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ask me in any language',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Examples: What does "Main theek hoon" mean? | Explain this Punjabi sentence | Translate this Urdu line to Arabic | What does "i am fine" mean in Urdu and Punjabi?',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 11.5,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 36,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: suggestions.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        return ActionChip(
+                          label: Text(
+                            suggestions[index],
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          backgroundColor: const Color(0xFF1F2937),
+                          side: const BorderSide(color: Color(0xFF334155)),
+                          onPressed: () => _applySuggestion(suggestions[index]),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Expanded(
               child: ListView.builder(
                 controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                itemCount: _messages.length,
+                padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
+                itemCount: _messages.length + (_isTyping ? 1 : 0),
                 itemBuilder: (context, index) {
-                  final message = _messages[index];
-                  return _ChatBubble(
-                    text: message['text'] ?? '',
-                    isUser: message['role'] == 'user',
-                  );
+                  if (_isTyping && index == _messages.length) {
+                    return const _TypingBubble();
+                  }
+
+                  return _ChatBubble(item: _messages[index]);
                 },
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
-              child: Column(
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFF0B0F15),
+                border: Border(top: BorderSide(color: Color(0xFF1F2937))),
+              ),
+              child: Row(
                 children: [
-                  AnimatedBuilder(
-                    animation: _micPulseAnimation,
-                    builder: (context, child) {
-                      final scale = _isListening ? _micPulseAnimation.value : 1.0;
-                      return Transform.scale(scale: scale, child: child);
-                    },
-                    child: GestureDetector(
-                      onTap: _toggleListening,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        width: 88,
-                        height: 88,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: _isListening
-                                ? const [Color(0xFFFF5A7A), Color(0xFFFF8A5B)]
-                                : const [Color(0xFF4F84FF), Color(0xFF82EEFD)],
+                  _CircleIconButton(
+                    icon: _isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                    onTap: _toggleListening,
+                    background: _isListening
+                        ? const LinearGradient(
+                            colors: [Color(0xFFFB7185), Color(0xFFF97316)],
+                          )
+                        : const LinearGradient(
+                            colors: [Color(0xFF2563EB), Color(0xFF38BDF8)],
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: (_isListening
-                                      ? const Color(0xFFFF5A7A)
-                                      : const Color(0xFF4F84FF))
-                                  .withOpacity(0.35),
-                              blurRadius: 22,
-                              spreadRadius: 2,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          _isListening ? Icons.stop_rounded : Icons.mic_rounded,
-                          color: Colors.white,
-                          size: 38,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF111827),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFF334155)),
+                      ),
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        onSubmitted: (_) => _sendText(),
+                        minLines: 1,
+                        maxLines: 4,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                        cursorColor: Colors.white,
+                        // Opt out of the global inputDecorationTheme (filled +
+                        // outline border) so the typed white text stays visible
+                        // on the dark container in both light and dark themes.
+                        decoration: const InputDecoration(
+                          filled: false,
+                          hintText: 'Ask meaning, usage, grammar, or translation',
+                          hintStyle: TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 13,
+                          ),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 14,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _isListening ? 'Listening...' : 'Tap to speak',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                  if (_isSending) ...<Widget>[
-                    const SizedBox(height: 10),
-                    const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                  const SizedBox(width: 10),
+                  _CircleIconButton(
+                    icon: Icons.send_rounded,
+                    onTap: _sendText,
+                    background: const LinearGradient(
+                      colors: [Color(0xFF60A5FA), Color(0xFF22C55E)],
                     ),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -424,42 +508,107 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
 }
 
 class _ChatBubble extends StatelessWidget {
-  final String text;
-  final bool isUser;
+  final _ChatItem item;
 
-  const _ChatBubble({required this.text, required this.isUser});
+  const _ChatBubble({required this.item});
 
   @override
   Widget build(BuildContext context) {
+    final isUser = item.role == _ChatRole.user;
+
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.82,
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
         ),
         decoration: BoxDecoration(
-          color: isUser ? const Color(0xFF4F84FF) : const Color(0xFFF2F6FF),
-          borderRadius: BorderRadius.circular(22),
+          color: isUser ? const Color(0xFF2563EB) : const Color(0xFFE5E7EB),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: Text(
-          text,
+          item.text,
           style: TextStyle(
-            color: isUser ? Colors.white : const Color(0xFF1C2430),
-            fontSize: 15,
-            height: 1.35,
+            color: isUser ? Colors.white : const Color(0xFF111827),
+            fontSize: 14,
+            height: 1.34,
             fontWeight: FontWeight.w500,
           ),
         ),
       ),
     );
   }
+}
+
+class _TypingBubble extends StatelessWidget {
+  const _TypingBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE5E7EB),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Text(
+          'Typing...',
+          style: TextStyle(
+            color: Color(0xFF111827),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final LinearGradient background;
+
+  const _CircleIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.background,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: background,
+        ),
+        child: Icon(icon, color: Colors.white, size: 22),
+      ),
+    );
+  }
+}
+
+enum _ChatRole { user, assistant }
+
+class _ChatItem {
+  final _ChatRole role;
+  final String text;
+
+  const _ChatItem({required this.role, required this.text});
 }
