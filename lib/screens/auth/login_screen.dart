@@ -45,30 +45,18 @@ class _LoginScreenState extends State<LoginScreen>
       );
       debugPrint('Rive file loaded successfully: bubble-gum-boy.riv');
       return file;
-    } on rive.RiveFileLoaderException catch (e) {
-      debugPrint('Rive load failed (FileLoaderException): $e');
-      if (mounted) {
-        setState(() {
-          _riveLoadError = e.toString();
-        });
-      }
-      return null;
-    } catch (e) {
-      debugPrint('Rive load failed: $e');
-      if (mounted) {
-        setState(() {
-          _riveLoadError = e.toString();
-        });
-      }
+    } catch (e, st) {
+      debugPrint('Rive load error: $e');
+      _riveLoadError = e.toString();
       return null;
     }
   }
 
   Future<void> _loadRememberMePreference() async {
     final prefs = await SharedPreferences.getInstance();
-    final rememberMe = prefs.getBool('rememberMe') ?? false;
     final savedEmail = prefs.getString('rememberedEmail') ?? '';
     final savedPassword = prefs.getString('rememberedPassword') ?? '';
+    final rememberMe = prefs.getBool('rememberMe') ?? false;
 
     setState(() {
       _rememberMe = rememberMe;
@@ -118,6 +106,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _login() async {
+    debugPrint('Login: start attempt for email=${_emailController.text.trim()}');
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(AppStrings.enterEmail)),
@@ -135,8 +124,13 @@ class _LoginScreenState extends State<LoginScreen>
         _passwordController.text,
       );
 
+      debugPrint('Login: FirebaseService.signIn returned userId=$userId');
+
+      if (!mounted) return;
+
       if (userId != null && mounted) {
         final user = FirebaseService.getCurrentUser();
+        debugPrint('Login: FirebaseService.getCurrentUser -> $user');
 
         if (user == null) {
           if (mounted) {
@@ -154,6 +148,7 @@ class _LoginScreenState extends State<LoginScreen>
         }
 
         if (!user.emailVerified) {
+          debugPrint('Login: user email not verified');
           if (mounted) {
               setState(() {
                 _isLoading = false;
@@ -171,6 +166,7 @@ class _LoginScreenState extends State<LoginScreen>
 
         // Save Remember Me preference
         final prefs = await SharedPreferences.getInstance();
+        if (!mounted) return;
         await prefs.setBool('rememberMe', _rememberMe);
         if (_rememberMe) {
           await prefs.setString('rememberedEmail', _emailController.text.trim());
@@ -179,6 +175,8 @@ class _LoginScreenState extends State<LoginScreen>
           await prefs.remove('rememberedEmail');
           await prefs.remove('rememberedPassword');
         }
+
+        if (!mounted) return;
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -192,17 +190,26 @@ class _LoginScreenState extends State<LoginScreen>
           try {
             await _loadUserDataAfterSignIn(userId);
 
+            debugPrint('Login: _loadUserDataAfterSignIn completed for $userId');
+
+            if (!mounted) return;
+
             // Check language selection and one-time level onboarding
             final localLanguage = await LanguageOnboardingService.getSelectedLanguage(userId);
 
+            if (!mounted) return;
+
             if (localLanguage.isNotEmpty) {
               final levelCompleted = await LanguageOnboardingService.isLevelCompleted(userId);
+              if (!mounted) return;
               final timeCompleted = levelCompleted
                   ? await LanguageOnboardingService.isTimeSelectionCompleted(userId)
                   : false;
+              if (!mounted) return;
               final preparingCompleted = timeCompleted
                   ? await LanguageOnboardingService.isPreparingScreenCompleted(userId)
                   : false;
+              if (!mounted) return;
               if (mounted) {
                 setState(() {
                   _isLoading = false;
@@ -252,9 +259,11 @@ class _LoginScreenState extends State<LoginScreen>
 
             if (selectedLanguage.isNotEmpty) {
               await LanguageOnboardingService.saveSelectedLanguage(userId, selectedLanguage);
+              if (!mounted) return;
               final levelCompleted = (doc.data()?['languageLevelCompleted'] ?? false) == true;
               final timeCompleted = (doc.data()?['timeSelectionCompleted'] ?? false) == true;
               final preparingCompleted = (doc.data()?['preparingScreenCompleted'] ?? false) == true;
+              if (!mounted) return;
               if (mounted) {
                 setState(() {
                   _isLoading = false;
@@ -326,7 +335,7 @@ class _LoginScreenState extends State<LoginScreen>
     _riveFileFuture ??= _loadRiveFileSafely();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFD9D9D9),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -378,20 +387,78 @@ class _LoginScreenState extends State<LoginScreen>
                         SizedBox(height: 50 * uiScale),
                         Center(
                           child: SizedBox(
-                            height: 180 * uiScale,
-                            // ignore: experimental_member_use
-                            child: rive.RivePanel(
-                              backgroundColor: const Color(0xFFD9D9D9),
-                              child: FutureBuilder<rive.File?>(
-                                future: _riveFileFuture,
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState == ConnectionState.waiting) {
+                            height: 260 * uiScale,
+                            child: FutureBuilder<rive.File?>(
+                              future: _riveFileFuture,
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return Container(
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      'Loading Rive...',
+                                      style: TextStyle(
+                                        color: Colors.blueGrey,
+                                        fontSize: 14 * uiScale,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                if (snapshot.hasError || snapshot.data == null) {
+                                  final errorText = _riveLoadError ?? snapshot.error.toString();
+                                  return Container(
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      'Rive Load Error: $errorText',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.red.shade700,
+                                        fontSize: 12 * uiScale,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                return rive.RiveWidgetBuilder(
+                                  fileLoader: rive.FileLoader.fromFile(
+                                    snapshot.data!,
+                                    riveFactory: rive.Factory.rive,
+                                  ),
+                                  artboardSelector: rive.ArtboardSelector.byName('Artboard'),
+                                  stateMachineSelector:
+                                      rive.StateMachineSelector.byName('State Machine 1'),
+                                  onLoaded: (state) {
+                                    debugPrint('Rive loaded: ${state.controller.runtimeType}');
+                                  },
+                                  onFailed: (error, stackTrace) {
+                                    debugPrint('Rive render failed: $error');
+                                  },
+                                  builder: (context, state) {
+                                    if (state is rive.RiveLoaded) {
+                                      return rive.RiveWidget(
+                                        controller: state.controller,
+                                        fit: rive.Fit.contain,
+                                        useSharedTexture: false,
+                                      );
+                                    }
+
+                                    if (state is rive.RiveFailed) {
+                                      return Container(
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          'Rive Load Error: ${state.error}',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            color: Colors.red.shade700,
+                                            fontSize: 12 * uiScale,
+                                          ),
+                                        ),
+                                      );
+                                    }
+
                                     return Container(
                                       alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        border: Border.all(color: Colors.blue.shade200, width: 2),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
                                       child: Text(
                                         'Loading Rive...',
                                         style: TextStyle(
@@ -401,87 +468,9 @@ class _LoginScreenState extends State<LoginScreen>
                                         ),
                                       ),
                                     );
-                                  }
-
-                                  if (snapshot.hasError || snapshot.data == null) {
-                                    final errorText = _riveLoadError ?? snapshot.error.toString();
-                                    return Container(
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        border: Border.all(color: Colors.red.shade300, width: 2),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        'Rive Load Error: $errorText',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: Colors.red.shade700,
-                                          fontSize: 12 * uiScale,
-                                        ),
-                                      ),
-                                    );
-                                  }
-
-                                  return rive.RiveWidgetBuilder(
-                                    fileLoader: rive.FileLoader.fromFile(
-                                      snapshot.data!,
-                                      riveFactory: rive.Factory.rive,
-                                    ),
-                                    artboardSelector: rive.ArtboardSelector.byName('Artboard'),
-                                    stateMachineSelector:
-                                        rive.StateMachineSelector.byName('State Machine 1'),
-                                    onLoaded: (state) {
-                                      debugPrint('Rive loaded on transparent panel: ${state.controller.runtimeType}');
-                                    },
-                                    onFailed: (error, stackTrace) {
-                                      debugPrint('Rive panel render failed: $error');
-                                    },
-                                    builder: (context, state) {
-                                      if (state is rive.RiveLoaded) {
-                                        return rive.RiveWidget(
-                                          controller: state.controller,
-                                          fit: rive.Fit.contain,
-                                          useSharedTexture: true,
-                                        );
-                                      }
-
-                                      if (state is rive.RiveFailed) {
-                                        return Container(
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
-                                            border: Border.all(color: Colors.red.shade300, width: 2),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            'Rive Load Error: ${state.error}',
-                                            textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                              color: Colors.red.shade700,
-                                              fontSize: 12 * uiScale,
-                                            ),
-                                          ),
-                                        );
-                                      }
-
-                                      return Container(
-                                        alignment: Alignment.center,
-                                        decoration: BoxDecoration(
-                                          border: Border.all(color: Colors.blue.shade200, width: 2),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Text(
-                                          'Loading Rive...',
-                                          style: TextStyle(
-                                            color: Colors.blueGrey,
-                                            fontSize: 14 * uiScale,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
+                                  },
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -491,6 +480,7 @@ class _LoginScreenState extends State<LoginScreen>
                           hintText: 'Email',
                           prefixIcon: Icons.email_outlined,
                           keyboardType: TextInputType.emailAddress,
+                          uiScale: uiScale,
                         ),
                         SizedBox(height: 18 * uiScale),
                         _LoginField(
@@ -498,10 +488,12 @@ class _LoginScreenState extends State<LoginScreen>
                           hintText: 'Password',
                           prefixIcon: Icons.lock_outline_rounded,
                           obscureText: _obscurePassword,
+                          uiScale: uiScale,
                           suffix: IconButton(
                             icon: Icon(
                               _obscurePassword ? Icons.visibility_off : Icons.visibility,
                               color: const Color(0xFF4A4A4A),
+                              size: 24 * uiScale,
                             ),
                             onPressed: () {
                               setState(() {
@@ -546,89 +538,27 @@ class _LoginScreenState extends State<LoginScreen>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
+                            Checkbox(
+                              value: _rememberMe,
+                              onChanged: (val) {
+                                setState(() {
+                                  _rememberMe = val ?? false;
+                                });
+                              },
+                              activeColor: Colors.blue,
+                            ),
+                            SizedBox(width: 8 * uiScale),
                             Text(
-                              'Forgot your password? ',
+                              'Remember me',
                               style: TextStyle(
                                 fontSize: 15 * uiScale,
                                 color: const Color(0xFF2E3A46),
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
-                            TextButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Reset your password',
-                                      style: const TextStyle(fontStyle: FontStyle.italic),
-                                    ),
-                                  ),
-                                );
-                              },
-                              style: TextButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              child: Text(
-                                'Reset your password',
-                                style: TextStyle(
-                                  fontSize: 15 * uiScale,
-                                  color: AppTheme.primaryGreen,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ),
                           ],
                         ),
-                        SizedBox(height: 22 * uiScale),
-                        Row(
-                          children: [
-                            const Expanded(child: Divider(color: Color(0xFFE6E6E6), thickness: 1)),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 14 * uiScale),
-                              child: Text(
-                                'OR',
-                                style: TextStyle(
-                                  color: const Color(0xFFA5A5A5),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12 * uiScale,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ),
-                            const Expanded(child: Divider(color: Color(0xFFE6E6E6), thickness: 1)),
-                          ],
-                        ),
-                        SizedBox(height: 18 * uiScale),
-                        _AuthSocialButton(
-                          label: 'Sign up with Apple',
-                          icon: Icon(Icons.apple, size: 24 * uiScale, color: const Color(0xFF1F2A3A)),
-                          onTap: _showComingSoon,
-                        ),
                         SizedBox(height: 12 * uiScale),
-                        _AuthSocialButton(
-                          label: 'Sign in with Google',
-                          icon: Image.asset(
-                            'assets/icons/google-logo-transparent-free-png.webp',
-                            width: 24 * uiScale,
-                            height: 24 * uiScale,
-                            fit: BoxFit.contain,
-                          ),
-                          onTap: _showComingSoon,
-                        ),
-                        SizedBox(height: 12 * uiScale),
-                        _AuthSocialButton(
-                          label: 'Sign in with SMS',
-                          icon: Image.asset(
-                            'assets/icons/smslogo.jpg',
-                            width: 22 * uiScale,
-                            height: 22 * uiScale,
-                            fit: BoxFit.contain,
-                          ),
-                          onTap: _showComingSoon,
-                        ),
-                        SizedBox(height: 22 * uiScale),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -680,6 +610,7 @@ class _LoginField extends StatelessWidget {
     required this.controller,
     required this.hintText,
     required this.prefixIcon,
+    required this.uiScale,
     this.keyboardType,
     this.obscureText = false,
     this.suffix,
@@ -688,6 +619,7 @@ class _LoginField extends StatelessWidget {
   final TextEditingController controller;
   final String hintText;
   final IconData prefixIcon;
+  final double uiScale;
   final TextInputType? keyboardType;
   final bool obscureText;
   final Widget? suffix;
@@ -698,19 +630,23 @@ class _LoginField extends StatelessWidget {
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
-      style: const TextStyle(
-        fontSize: 16,
-        color: Color(0xFF2E3A46),
+      style: TextStyle(
+        fontSize: 16 * uiScale,
+        color: const Color(0xFF2E3A46),
         fontStyle: FontStyle.italic,
       ),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: const TextStyle(
-          color: Color(0xFF2E3A46),
-          fontSize: 16,
+        hintStyle: TextStyle(
+          color: const Color(0xFF2E3A46),
+          fontSize: 16 * uiScale,
           fontStyle: FontStyle.italic,
         ),
-        prefixIcon: Icon(prefixIcon, color: const Color(0xFF4A4A4A)),
+        prefixIcon: Icon(
+          prefixIcon,
+          color: const Color(0xFF4A4A4A),
+          size: 24 * uiScale,
+        ),
         suffixIcon: suffix,
         filled: false,
         border: OutlineInputBorder(
@@ -725,52 +661,9 @@ class _LoginField extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: AppTheme.primaryGreen, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      ),
-    );
-  }
-}
-
-class _AuthSocialButton extends StatelessWidget {
-  const _AuthSocialButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final Widget icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 54,
-      child: Material(
-        color: const Color(0xFFEFF2FC),
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(width: 30, child: Center(child: icon)),
-                const SizedBox(width: 14),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF1F2A3A),
-                    fontWeight: FontWeight.w500,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        contentPadding: EdgeInsets.symmetric(
+          vertical: 16 * uiScale,
+          horizontal: 12 * uiScale,
         ),
       ),
     );

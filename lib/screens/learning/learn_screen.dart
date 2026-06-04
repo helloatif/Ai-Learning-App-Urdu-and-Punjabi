@@ -91,10 +91,9 @@ class _LearnScreenState extends State<LearnScreen>
           const Color(0xFF9EA1D4), // Soft Lavender Blue
         ];
 
-        // Choose header color per selected language and make status bar transparent
-        final lang = selectedLanguage.trim().toLowerCase();
-        final Color headerColor = (lang == 'punjabi') ? const Color(0xFFF06292) : AppTheme.primaryGreen;
-        // Per-screen status bar style: use headerColor so system bar matches banner
+        // Use the Profile screen's sky-blue so header and status bar match globally
+        final Color headerColor = AppTheme.primaryGreen;
+        // Per-screen status bar style: force to sky-blue so system bar matches banner
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle(
             statusBarColor: headerColor,
