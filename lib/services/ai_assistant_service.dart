@@ -33,18 +33,14 @@ class AIAssistantService {
         classification: classification,
       );
 
-      _conversationHistory.add({'role': 'user', 'content': userMessage});
-      _conversationHistory.add({'role': 'assistant', 'content': response});
-      _trimHistory();
-
+      // History intentionally not retained: feeding prior turns back into the
+      // prompt caused Gemini to hallucinate context for short or ambiguous
+      // inputs (e.g. answering "we" with the previous "main theek hoon"
+      // explanation). Each question is now independent.
       return response;
     } catch (e) {
       debugPrint('AI Assistant error: $e');
-      return _offlineResponse(
-        userMessage,
-        classification,
-        error: e.toString(),
-      );
+      return _offlineResponse(error: e.toString());
     }
   }
 
@@ -173,48 +169,57 @@ class AIAssistantService {
     return AssistantIntent.general;
   }
 
-  /// Builds the ordered list of endpoints to try for a given key.
+  /// Builds the ordered list of endpoints to try across ALL configured keys.
   ///
   /// Both `AIza` (AI Studio) and `AQ.` (express) keys work with the free
   /// `generativelanguage.googleapis.com` Developer API via the `x-goog-api-key`
-  /// header, so that is tried first (no billing required). The paid Vertex /
-  /// Agent Platform express endpoint is kept as a fallback for keys whose
-  /// project is only enabled there.
-  static List<_GeminiEndpoint> _buildEndpoints(String apiKey) {
+  /// header (no billing required). With multiple keys we get a separate
+  /// 20-requests/day free quota per (key × model), so two keys × three models
+  /// is effectively ~120 free requests/day.
+  ///
+  /// Order:
+  /// 1. Free Developer API for every (key × model) combination.
+  /// 2. Paid Vertex / Agent Platform express endpoint per key (last resort).
+  static List<_GeminiEndpoint> _buildEndpoints(List<String> apiKeys) {
     final endpoints = <_GeminiEndpoint>[];
 
-    // Free Developer API for each model first. Rotating models on a 429 lets us
-    // use each model's separate free-tier daily quota.
+    // Tier 1: free Developer API. Iterate models in the outer loop so we hit
+    // every key's flash-lite first (the cheapest model) before stepping up to
+    // larger models -- maximizes free quota usage.
     for (final model in _geminiModels) {
+      for (final apiKey in apiKeys) {
+        endpoints.add(
+          _GeminiEndpoint(
+            uri: Uri.parse(
+              'https://generativelanguage.googleapis.com/v1beta/models/'
+              '$model:generateContent',
+            ),
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
+            kind: 'developer-api',
+            model: model,
+          ),
+        );
+      }
+    }
+
+    // Tier 2: paid Vertex / Agent Platform express fallback per key (needs the
+    // API enabled + billing). Only reached if every free option is exhausted.
+    for (final apiKey in apiKeys) {
       endpoints.add(
         _GeminiEndpoint(
           uri: Uri.parse(
-            'https://generativelanguage.googleapis.com/v1beta/models/'
-            '$model:generateContent',
+            'https://aiplatform.googleapis.com/v1/publishers/google/models/'
+            '${_geminiModels.first}:generateContent?key=$apiKey',
           ),
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': apiKey,
-          },
-          kind: 'developer-api',
-          model: model,
+          headers: const {'Content-Type': 'application/json'},
+          kind: 'vertex-express',
+          model: _geminiModels.first,
         ),
       );
     }
-
-    // Paid Vertex / Agent Platform express fallback (needs the API enabled +
-    // billing). Only reached if every free model is exhausted.
-    endpoints.add(
-      _GeminiEndpoint(
-        uri: Uri.parse(
-          'https://aiplatform.googleapis.com/v1/publishers/google/models/'
-          '${_geminiModels.first}:generateContent?key=$apiKey',
-        ),
-        headers: const {'Content-Type': 'application/json'},
-        kind: 'vertex-express',
-        model: _geminiModels.first,
-      ),
-    );
 
     return endpoints;
   }
@@ -240,8 +245,8 @@ class AIAssistantService {
     required String userMessage,
     required _AssistantClassification classification,
   }) async {
-    final geminiApiKey = EnvConfig.getGeminiApiKey();
-    final endpoints = _buildEndpoints(geminiApiKey);
+    final geminiApiKeys = EnvConfig.getGeminiApiKeys();
+    final endpoints = _buildEndpoints(geminiApiKeys);
 
     final prompt = _buildPrompt(
       userMessage: userMessage,
@@ -266,14 +271,8 @@ class AIAssistantService {
       },
     ];
 
-    for (final message in _recentHistory()) {
-      contents.add({
-        'role': message['role'] == 'user' ? 'user' : 'model',
-        'parts': [
-          {'text': message['content'] ?? ''},
-        ],
-      });
-    }
+    // No conversation history: each question is treated independently to
+    // prevent Gemini from hallucinating context from prior turns.
 
     contents.add({
       'role': 'user',
@@ -396,6 +395,7 @@ Other rules:
    - Use simple long-vowel spellings only when needed for clarity (aa, ee, oo), e.g. "shukriya", "khush aamadeed".
 6. If the user explicitly asks for both Urdu and Punjabi, provide both translations clearly, each with its own script line and its own pronunciation.
 7. Keep the answer concise, accurate, and friendly, with short scannable lines instead of long paragraphs.
+8. NEVER invent context. If the user's message is gibberish, just a single random word like "we" or "asd", or otherwise unclear, do NOT guess what they meant or pull from any imagined prior conversation. Reply briefly in their language asking them to clarify (for example: "Could you clarify what you would like to know?"). You have NO memory of previous turns - treat every message as the first one.
 
 Learning-target hint (Urdu vs Punjabi ONLY - not the reply language):
 - Intent: ${classification.intent.name}
@@ -449,57 +449,56 @@ Do NOT state, name, or comment on which language they used. Never write sentence
     }
   }
 
-  static String _offlineResponse(
-    String userMessage,
-    _AssistantClassification classification,
-    {String? error}) {
-    final isQuotaError = _isGeminiQuotaError(error);
-    final isBillingDisabled = _isBillingDisabledError(error);
-    final isServiceDisabled = _isServiceDisabledError(error);
-    final isPermissionDenied = _isPermissionDeniedError(error);
-    final lower = userMessage.toLowerCase();
-
-    if (isBillingDisabled) {
-      return 'Setup needed: billing is not enabled for the Google Cloud '
-          'project behind this key. Enable billing on the project, or switch to '
-          'a free AI Studio key from aistudio.google.com/apikey (no billing '
-          'required), then try again.';
+  /// Returns a transparent error message when Gemini cannot answer.
+  /// No canned/hardcoded "tutoring" answers - this clearly tells the user the
+  /// real reason (quota, billing, permission, network) so they know what to do.
+  static String _offlineResponse({String? error}) {
+    if (_isGeminiQuotaError(error)) {
+      return 'Gemini error: free-tier quota exhausted (HTTP 429) on every '
+          'configured key. The daily free limit resets ~midnight US-Pacific. '
+          'Add another API key in lib/config/api_keys.dart, or enable billing '
+          'on the project, then try again.';
     }
 
-    if (isServiceDisabled) {
-      return 'Setup needed: the Vertex AI / Agent Platform API is not enabled '
-          'for the Google Cloud project behind this key. Open the Google Cloud '
-          'Console, enable "Vertex AI API" (aiplatform.googleapis.com), wait a '
-          'minute, then try again.';
+    if (_isBillingDisabledError(error)) {
+      return 'Gemini error: billing is not enabled for the Google Cloud '
+          'project behind this key (BILLING_DISABLED). Enable billing on the '
+          'project at console.cloud.google.com, or use a free AI Studio key.';
     }
 
-    if (isPermissionDenied) {
-      return 'Access issue: this API key was rejected by Gemini (permission '
-          'denied). Use an AI Studio key from aistudio.google.com/apikey, or '
-          'enable the Vertex AI API for the project that owns this key.';
+    if (_isServiceDisabledError(error)) {
+      return 'Gemini error: the required API is not enabled on the project '
+          '(SERVICE_DISABLED). Enable "Generative Language API" or "Vertex AI '
+          'API" in the Google Cloud Console for that project.';
     }
 
-    if (isQuotaError) {
-      return 'Free-tier limit reached for now. The Gemini free quota resets '
-          'after a short wait (usually within a minute, or daily for the daily '
-          'cap). Please wait a moment and try again.';
+    if (_isPermissionDeniedError(error)) {
+      return 'Gemini error: this API key was rejected (PERMISSION_DENIED). '
+          'The project may be flagged or the key may be invalid. Generate a '
+          'fresh key at aistudio.google.com/apikey.';
     }
 
-    if (lower.contains('translate') || lower.contains('meaning')) {
-      return classification.detectedLanguage == 'punjabi'
-          ? 'Main offline mode vich haan. Gemini API ya to reach nahi ho rahi ya key valid nahi. Translation/meaning de layi API request check karo.'
-          : 'I am in offline mode. Gemini is not responding or the API key is not being accepted. Check the Gemini request and key.';
+    if (_isNetworkError(error)) {
+      return 'Network error: could not reach Gemini. Check your internet '
+          'connection and try again.';
     }
 
-    if (lower.contains('grammar')) {
-      return classification.detectedLanguage == 'punjabi'
-          ? 'Main offline mode vich haan. Gemini request fail ho rahi hai, is liye grammar answer fallback use ho raha hai.'
-          : 'I am in offline mode. Gemini request failed, so grammar answer fallback is being used.';
-    }
+    final raw = (error == null || error.trim().isEmpty)
+        ? 'unknown error'
+        : error.trim();
+    final snippet = raw.length > 300 ? '${raw.substring(0, 300)}...' : raw;
+    return 'Gemini error: $snippet';
+  }
 
-    return classification.detectedLanguage == 'punjabi'
-        ? 'Main offline mode vich haan. Gemini request ya key issue aa rahi hai, is liye full jawab nahi aa raha.'
-        : 'I am in offline mode. Gemini request or key issue is preventing full answers.';
+  static bool _isNetworkError(String? error) {
+    if (error == null || error.isEmpty) return false;
+    final lower = error.toLowerCase();
+    return lower.contains('socketexception') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('clientexception') ||
+        lower.contains('timeout') ||
+        lower.contains('handshakeexception') ||
+        lower.contains('connection');
   }
 
   static bool _isGeminiQuotaError(String? error) {

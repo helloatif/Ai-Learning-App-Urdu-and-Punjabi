@@ -59,18 +59,40 @@ class EnvConfig {
   );
 
   static String getGeminiApiKey() {
-    if (geminiApiKey.trim().isNotEmpty) {
-      return geminiApiKey.trim();
+    final keys = getGeminiApiKeys();
+    return keys.first;
+  }
+
+  /// Returns ALL configured Gemini keys, de-duplicated and validated.
+  ///
+  /// Order: env-var key (`--dart-define=GCP_API_KEY`) first, then every key
+  /// listed in `ApiKeys.geminiApiKeys`. The assistant rotates across this
+  /// list when one key's free-tier quota is exhausted.
+  static List<String> getGeminiApiKeys() {
+    final keys = <String>[];
+
+    void add(String? raw) {
+      if (raw == null) return;
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) return;
+      if (trimmed.startsWith('YOUR_')) return;
+      if (keys.contains(trimmed)) return;
+      keys.add(trimmed);
     }
 
-    final apiKey = ApiKeys.geminiApiKey.trim();
-    if (apiKey.isNotEmpty && !apiKey.startsWith('YOUR_')) {
-      return apiKey;
+    add(geminiApiKey);
+
+    for (final key in ApiKeys.geminiApiKeys) {
+      add(key);
     }
 
-    throw Exception(
-      'Gemini API key not configured. Add ApiKeys.geminiApiKey or run with '
-      '--dart-define=GCP_API_KEY=your_key_here',
-    );
+    if (keys.isEmpty) {
+      throw Exception(
+        'Gemini API key not configured. Add ApiKeys.geminiApiKey or run with '
+        '--dart-define=GCP_API_KEY=your_key_here',
+      );
+    }
+
+    return keys;
   }
 }

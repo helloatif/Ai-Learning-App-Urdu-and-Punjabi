@@ -94,22 +94,43 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
     if (mounted) setState(() {});
   }
 
-  /// Resolve the best device locale id for the chosen voice language.
-  /// Returns null to let the recognizer use the system default.
+  /// Default IETF locale id for each voice-language option. Used when the
+  /// recognizer (e.g. on Chrome/web) doesn't expose an `_availableLocaleIds`
+  /// list - in those cases we just pass the IETF id directly and the browser
+  /// honors it if it can.
+  static const Map<String, String> _defaultLocaleIds = {
+    'en': 'en-US',
+    'ur': 'ur-PK',
+    'pa': 'pa-PK',
+    'ar': 'ar-SA',
+    'de': 'de-DE',
+    'zh': 'zh-CN',
+  };
+
+  /// Resolve the locale id to pass to the recognizer.
+  /// Returns null only for "Auto" (let the system pick).
   String? _resolveSpeechLocaleId() {
-    if (_voiceLanguage == 'auto' || _availableLocaleIds.isEmpty) {
+    if (_voiceLanguage == 'auto') {
       return null;
     }
 
-    // speech_to_text uses ids like "ur_PK", "pa_IN", "ar_SA", "en_US".
     final normalized = _voiceLanguage.toLowerCase();
-    for (final id in _availableLocaleIds) {
-      final prefix = id.toLowerCase().split(RegExp(r'[_-]')).first;
-      if (prefix == normalized) {
-        return id;
+
+    // Try matching against device-installed locales first (prefers regional
+    // variants users actually have, e.g. ur_PK over ur).
+    if (_availableLocaleIds.isNotEmpty) {
+      for (final id in _availableLocaleIds) {
+        final prefix = id.toLowerCase().split(RegExp(r'[_-]')).first;
+        if (prefix == normalized) {
+          return id;
+        }
       }
     }
-    return null;
+
+    // Fall back to a sensible default IETF id - this is what makes voice work
+    // on Chrome/web where the locale list is often empty even though the
+    // browser supports the language.
+    return _defaultLocaleIds[normalized];
   }
 
   Future<void> _sendText([String? override, String? ttsLanguageOverride]) async {
@@ -148,9 +169,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
 
       setState(() {
         _messages.add(
-          const _ChatItem(
+          _ChatItem(
             role: _ChatRole.assistant,
-            text: 'Sorry, I could not generate a response just now.',
+            text: 'Error: $e',
           ),
         );
         _isSending = false;
@@ -195,13 +216,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
     if (!_speechEnabled) {
       _showSnackBar('Speech recognition is not available on this device.');
       return;
-    }
-
-    if (_voiceLanguage != 'auto' && _resolveSpeechLocaleId() == null) {
-      _showSnackBar(
-        '${_voiceLanguageLabels[_voiceLanguage]} voice pack is not installed '
-        'on this device. Using the default language instead.',
-      );
     }
 
     setState(() {
