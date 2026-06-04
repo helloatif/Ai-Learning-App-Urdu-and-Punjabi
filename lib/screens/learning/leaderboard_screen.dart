@@ -27,11 +27,13 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
     final userProvider = Provider.of<UserProvider>(context);
     final currentUserId = userProvider.currentUser?.id ?? '';
 
-    // Set status-bar color based on user's selected language (Urdu/Punjabi)
+    // Determine header color based on user's selected language (Urdu/Punjabi)
     final selectedLang = userProvider.currentUser?.selectedLanguage?.trim().toLowerCase() ?? 'urdu';
-    final Color _statusBarColor = (selectedLang == 'punjabi') ? const Color(0xFFF06292) : AppTheme.blue;
+    final Color headerColor = (selectedLang == 'punjabi') ? const Color(0xFFF06292) : AppTheme.blue;
+
+    // Apply the headerColor to system/status bar for this screen only
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-      statusBarColor: _statusBarColor,
+      statusBarColor: headerColor,
       statusBarIconBrightness: Brightness.light,
       statusBarBrightness: Brightness.dark,
     ));
@@ -42,8 +44,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
           // --- HEADER SECTION ---
           Container(
             width: double.infinity,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF06292),
+            decoration: BoxDecoration(
+                color: headerColor,
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(32),
                 bottomRight: Radius.circular(32),
