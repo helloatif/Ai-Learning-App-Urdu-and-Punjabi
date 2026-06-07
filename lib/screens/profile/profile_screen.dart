@@ -9,6 +9,7 @@ import '../../themes/app_theme.dart';
 import '../learning/ai_assistant_screen.dart';
 import '../learning/leaderboard_screen.dart';
 import '../learning/learn_screen.dart';
+import '../learning/folk_stories_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -379,7 +380,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     iconAsset: 'assets/icons/Cloud-3-zap.png',
                                     accentIcon: null,
                                     centerAsset: 'assets/icons/storiesicon.png',
-                                    onTap: () => _showComingSoonSnack('Stories'),
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => const FolkStoriesScreen(),
+                                        ),
+                                      );
+                                    },
                                   ),
                                   _BentoCard(
                                     title: 'Leaderboard',

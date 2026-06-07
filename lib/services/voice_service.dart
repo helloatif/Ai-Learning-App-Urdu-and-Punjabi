@@ -16,6 +16,11 @@ class VoiceService {
 
   static String get lastTtsError => _lastTtsError;
 
+  // Optional hooks for native TTS lifecycle events. Other code can set these
+  // to be notified exactly when the platform TTS starts/completes an utterance.
+  static VoidCallback? onTtsStart;
+  static VoidCallback? onTtsComplete;
+
   /// Initialize TTS and STT
   static Future<void> initialize() async {
     if (_isInitialized) return;
@@ -30,6 +35,46 @@ class VoiceService {
       await _flutterTts.setVolume(1.0);
       await _flutterTts.setPitch(1.0);
       await _flutterTts.awaitSpeakCompletion(true);
+      // Wire the native TTS lifecycle callbacks to optional hooks.
+      try {
+        _flutterTts.setStartHandler(() {
+          debugPrint('[TTS] native onStart');
+          try {
+            onTtsStart?.call();
+          } catch (e) {
+            debugPrint('[TTS] onTtsStart handler error: $e');
+          }
+        });
+
+        _flutterTts.setCompletionHandler(() {
+          debugPrint('[TTS] native onComplete');
+          try {
+            onTtsComplete?.call();
+          } catch (e) {
+            debugPrint('[TTS] onTtsComplete handler error: $e');
+          }
+        });
+
+        _flutterTts.setCancelHandler(() {
+          debugPrint('[TTS] native onCancel');
+          try {
+            onTtsComplete?.call();
+          } catch (e) {
+            debugPrint('[TTS] onTtsComplete handler error: $e');
+          }
+        });
+
+        _flutterTts.setErrorHandler((msg) {
+          debugPrint('[TTS] native onError: $msg');
+          try {
+            onTtsComplete?.call();
+          } catch (e) {
+            debugPrint('[TTS] onTtsComplete handler error: $e');
+          }
+        });
+      } catch (e) {
+        debugPrint('[TTS] failed to attach native handlers: $e');
+      }
       _isTtsReady = true;
       debugPrint('[TTS] initialize() TTS ready');
 

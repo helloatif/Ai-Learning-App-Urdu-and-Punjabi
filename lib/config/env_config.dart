@@ -82,9 +82,7 @@ class EnvConfig {
 
     add(geminiApiKey);
 
-    for (final key in ApiKeys.geminiApiKeys) {
-      add(key);
-    }
+    add(ApiKeys.geminiApiKey);
 
     if (keys.isEmpty) {
       throw Exception(
