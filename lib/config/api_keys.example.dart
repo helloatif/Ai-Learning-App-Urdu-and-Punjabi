@@ -4,4 +4,5 @@
 class ApiKeys {
   static const String huggingFaceToken = 'YOUR_HF_TOKEN_HERE';
   static const String huggingFaceModelToken = 'YOUR_HF_MODEL_TOKEN_HERE';
+  static const String geminiApiKey = 'YOUR_GEMINI_API_KEY_HERE';
 }

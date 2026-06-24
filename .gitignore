@@ -56,5 +56,5 @@ ENV/
 
 ml_model/trained_model_v3_2500/
 
-# API Keys (secret)
+# API keys (keep local only — never commit)
 lib/config/api_keys.dart
