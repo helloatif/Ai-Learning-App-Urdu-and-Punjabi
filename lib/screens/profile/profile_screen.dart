@@ -6,6 +6,7 @@ import '../../providers/gamification_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/firebase_service.dart';
 import '../../themes/app_theme.dart';
+import '../grammar/grammar_checker_screen.dart';
 import '../learning/ai_assistant_screen.dart';
 import '../learning/leaderboard_screen.dart';
 import '../learning/learn_screen.dart';
@@ -405,20 +406,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     },
                                   ),
                                   _BentoCard(
-                                    title: 'Invite & Play\nwith Friends',
-                                    subtitle: 'Tap play to start a social challenge',
+                                    title: 'Grammar\nchecking',
+                                    subtitle: '',
                                     color: const Color(0xFFE56F64),
-                                    icon: Icons.groups_rounded,
-                                    accentIcon: Icons.accessibility_new_rounded,
-                                    buttonLabel: 'Play',
-                                    onTap: () => _showComingSoonSnack('Invite & Play'),
+                                    icon: null,
+                                    accentIcon: null,
+                                    showTopIcon: false,
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const GrammarCheckerScreen(),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 12),
-                              _DiscoverCard(
-                                onPressed: () => _showComingSoonSnack('Discover'),
-                              ),
+                              // Discover card removed
                               const SizedBox(height: 12),
                               _ProfileSummaryCard(
                                 displayName: displayName,
@@ -562,6 +568,7 @@ class _BentoCard extends StatelessWidget {
   final String? accentAsset;
   final String? centerAsset;
   final String? buttonLabel;
+  final bool showTopIcon;
   final VoidCallback onTap;
 
   const _BentoCard({
@@ -573,6 +580,7 @@ class _BentoCard extends StatelessWidget {
     this.accentIcon,
     this.accentAsset,
     this.centerAsset,
+    this.showTopIcon = true,
     required this.onTap,
     this.buttonLabel,
   });
@@ -663,31 +671,32 @@ class _BentoCard extends StatelessWidget {
                   ),
                 )
               else ...[
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: const BoxDecoration(
-                      color: Colors.transparent,
-                      shape: BoxShape.circle,
-                    ),
-                    child: iconAsset == null
-                        ? Icon(
-                            icon ?? Icons.circle,
-                            color: Colors.white,
-                            size: 15,
-                          )
-                        : Padding(
-                            padding: const EdgeInsets.all(2),
-                            child: Image.asset(
-                              iconAsset!,
-                              fit: BoxFit.contain,
+                if (showTopIcon)
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: const BoxDecoration(
+                        color: Colors.transparent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: iconAsset == null
+                          ? Icon(
+                              icon ?? Icons.circle,
+                              color: Colors.white,
+                              size: 15,
+                            )
+                          : Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: Image.asset(
+                                iconAsset!,
+                                fit: BoxFit.contain,
+                              ),
                             ),
-                          ),
+                    ),
                   ),
-                ),
                 Positioned(
                   left: 0,
                   right: 0,
@@ -918,9 +927,9 @@ class _ProfileSummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.10),
+        color: const Color(0xFF7CFC00).withOpacity(0.10),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        border: Border.all(color: const Color(0xFF7CFC00).withOpacity(0.12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

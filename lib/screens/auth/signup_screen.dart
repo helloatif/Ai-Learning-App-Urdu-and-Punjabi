@@ -170,58 +170,6 @@ class _SignupScreenState extends State<SignupScreen> {
                             ),
                           ),
                           SizedBox(height: 20 * scale),
-                          _SocialButton(
-                            label: 'Sign up with Apple',
-                            icon: Icon(
-                              Icons.apple,
-                              size: 24 * scale,
-                              color: const Color(0xFF1F2A3A),
-                            ),
-                            onTap: _showComingSoon,
-                          ),
-                          SizedBox(height: 12 * scale),
-                          _SocialButton(
-                            label: 'Sign up with Google',
-                            icon: Image.asset(
-                              'assets/icons/google-logo-transparent-free-png.webp',
-                              width: 24 * scale,
-                              height: 24 * scale,
-                              fit: BoxFit.contain,
-                            ),
-                            onTap: _showComingSoon,
-                          ),
-                          SizedBox(height: 12 * scale),
-                          _SocialButton(
-                            label: 'Sign up with SMS',
-                            icon: Image.asset(
-                              'assets/icons/smslogo.jpg',
-                              width: 22 * scale,
-                              height: 22 * scale,
-                              fit: BoxFit.contain,
-                            ),
-                            onTap: _showComingSoon,
-                          ),
-                          SizedBox(height: 18 * scale),
-                          Row(
-                            children: [
-                              const Expanded(child: Divider(color: Color(0xFFE6E6E6), thickness: 1)),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 14 * scale),
-                                child: Text(
-                                  'OR',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    color: const Color(0xFFA5A5A5),
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12 * scale,
-                                    letterSpacing: 0.8,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              ),
-                              const Expanded(child: Divider(color: Color(0xFFE6E6E6), thickness: 1)),
-                            ],
-                          ),
-                          SizedBox(height: 16 * scale),
                           _StyledField(
                             controller: _nameController,
                             hintText: 'Full name',
@@ -352,52 +300,6 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-class _SocialButton extends StatelessWidget {
-  const _SocialButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final Widget icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 54,
-      child: Material(
-        color: const Color(0xFFEFF2FC),
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(width: 30, child: Center(child: icon)),
-                const SizedBox(width: 14),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFF1F2A3A),
-                    fontWeight: FontWeight.w500,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
