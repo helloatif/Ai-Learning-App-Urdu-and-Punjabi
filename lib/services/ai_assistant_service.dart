@@ -12,8 +12,9 @@ class AIAssistantService {
   // which multiplies the number of free requests available per day.
   // 2.5 models support disabling "thinking"; 2.0 does not.
   static const List<String> _geminiModels = [
-    'gemini-2.5-flash-lite',
     'gemini-2.5-flash',
+    'gemini-flash-lite-latest',
+    'gemini-2.0-flash-lite',
     'gemini-2.0-flash',
   ];
 

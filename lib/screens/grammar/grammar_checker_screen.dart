@@ -40,8 +40,8 @@ class _GrammarCheckerScreenState extends State<GrammarCheckerScreen> {
 
     final buffer = StringBuffer();
     buffer.writeln('Score: ${result.score}%');
-    buffer.writeln('ML Score: ${result.mlScore}%');
-    buffer.writeln('Semantic Score: ${result.semanticScore}%');
+    buffer.writeln('Writing Quality: ${result.mlScore}%');
+    buffer.writeln('Rule Score: ${result.semanticScore}%');
     buffer.writeln('');
     buffer.writeln(result.feedback);
 

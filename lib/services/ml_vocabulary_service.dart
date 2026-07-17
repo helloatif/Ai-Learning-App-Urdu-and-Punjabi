@@ -337,43 +337,60 @@ class MLVocabularyService {
   }) async {
     final embeddingService = EmbeddingCacheService();
     final ruleViolations = <GrammarViolation>[];
+    final isFreeformCheck =
+        _normalizeText(userInput) == _normalizeText(expectedText);
 
     // 1. Get ML score from HuggingFace model
     double mlScore = 0.5;
-    try {
-      final mlResult = await _scoreWithHuggingFace(userInput, expectedText);
-      if (mlResult != null) {
-        mlScore = mlResult.score / 100.0;
+    if (!isFreeformCheck) {
+      try {
+        final mlResult = await _scoreWithHuggingFace(userInput, expectedText);
+        if (mlResult != null) {
+          mlScore = mlResult.score / 100.0;
+        }
+      } catch (e) {
+        debugPrint('ML score failed: $e');
       }
-    } catch (e) {
-      debugPrint('ML score failed: $e');
     }
 
-    // 2. Calculate semantic similarity using embeddings
-    double semanticScore = 0.5;
-    try {
-      semanticScore = await embeddingService.calculateSimilarity(
-        userInput,
-        expectedText,
-      );
-    } catch (e) {
-      debugPrint('Semantic similarity failed: $e');
-      // Fallback to string similarity
-      semanticScore = _calculateSimilarity(
-        _normalizeText(userInput),
-        _normalizeText(expectedText),
-      );
-    }
-
-    // 3. Apply language-specific grammar rules
+    // 2. Apply language-specific grammar rules
     ruleViolations.addAll(_applyGrammarRules(userInput, language));
+    if (isFreeformCheck) {
+      ruleViolations.addAll(_applyFreeformWritingRules(userInput, language));
+    }
+
+    // 3. Calculate semantic similarity or free-form writing quality
+    double semanticScore = 0.5;
+    if (isFreeformCheck) {
+      semanticScore = _estimateFreeformQuality(
+        userInput,
+        language,
+        ruleViolations,
+      );
+      mlScore = semanticScore;
+    } else {
+      try {
+        semanticScore = await embeddingService.calculateSimilarity(
+          userInput,
+          expectedText,
+        );
+      } catch (e) {
+        debugPrint('Semantic similarity failed: $e');
+        // Fallback to string similarity
+        semanticScore = _calculateSimilarity(
+          _normalizeText(userInput),
+          _normalizeText(expectedText),
+        );
+      }
+    }
 
     // 4. Calculate rule penalty
-    final rulePenalty = (ruleViolations.length * 0.1).clamp(0.0, 0.3);
+    final rulePenalty = _calculateRulePenalty(ruleViolations);
 
     // 5. Combine scores (ML: 50%, Semantic: 30%, Rules: 20%)
-    final combinedScore =
-        (mlScore * 0.5) + (semanticScore * 0.3) + ((1.0 - rulePenalty) * 0.2);
+    final combinedScore = isFreeformCheck
+        ? (semanticScore * 0.65) + ((1.0 - rulePenalty) * 0.35)
+        : (mlScore * 0.5) + (semanticScore * 0.3) + ((1.0 - rulePenalty) * 0.2);
 
     // 6. Generate detailed feedback
     final feedback = _generateDetailedFeedback(
@@ -511,6 +528,102 @@ class MLVocabularyService {
     }
 
     return violations;
+  }
+
+  static List<GrammarViolation> _applyFreeformWritingRules(
+    String text,
+    String language,
+  ) {
+    final violations = <GrammarViolation>[];
+    final trimmed = text.trim();
+    final words = trimmed.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    final wordCount = words.length;
+    final hasArabicScript = RegExp(r'[\u0600-\u06FF]').hasMatch(trimmed);
+
+    if (wordCount < 2) {
+      violations.add(
+        GrammarViolation(
+          type: GrammarViolationType.other,
+          message: 'Enter a complete sentence for grammar checking',
+          messageUrdu: 'گرامر چیک کرنے کے لیے مکمل جملہ لکھیں',
+          severity: GrammarSeverity.warning,
+        ),
+      );
+    }
+
+    if ((language == 'urdu' || language == 'punjabi') && !hasArabicScript) {
+      violations.add(
+        GrammarViolation(
+          type: GrammarViolationType.spellingError,
+          message: 'Use Urdu/Punjabi script instead of Roman text',
+          messageUrdu: 'رومن کے بجائے اردو/پنجابی رسم الخط استعمال کریں',
+          severity: GrammarSeverity.warning,
+        ),
+      );
+    }
+
+    if (RegExp(r'\s{2,}').hasMatch(text)) {
+      violations.add(
+        GrammarViolation(
+          type: GrammarViolationType.other,
+          message: 'Remove extra spaces between words',
+          messageUrdu: 'الفاظ کے درمیان اضافی فاصلے ختم کریں',
+          severity: GrammarSeverity.minor,
+        ),
+      );
+    }
+
+    if (wordCount >= 4 && !RegExp(r'[۔؟.!?]$').hasMatch(trimmed)) {
+      violations.add(
+        GrammarViolation(
+          type: GrammarViolationType.missingPunctuation,
+          message: 'Add ending punctuation',
+          messageUrdu: 'جملے کے آخر میں مناسب علامت لگائیں',
+          severity: GrammarSeverity.minor,
+        ),
+      );
+    }
+
+    return violations;
+  }
+
+  static double _calculateRulePenalty(List<GrammarViolation> violations) {
+    var penalty = 0.0;
+    for (final violation in violations) {
+      penalty += switch (violation.severity) {
+        GrammarSeverity.minor => 0.06,
+        GrammarSeverity.warning => 0.14,
+        GrammarSeverity.error => 0.24,
+      };
+    }
+    return penalty.clamp(0.0, 0.45);
+  }
+
+  static double _estimateFreeformQuality(
+    String text,
+    String language,
+    List<GrammarViolation> violations,
+  ) {
+    final trimmed = text.trim();
+    final wordCount = trimmed
+        .split(RegExp(r'\s+'))
+        .where((word) => word.trim().isNotEmpty)
+        .length;
+    final hasArabicScript = RegExp(r'[\u0600-\u06FF]').hasMatch(trimmed);
+
+    var score = 0.88;
+    if (wordCount <= 1) {
+      score -= 0.28;
+    } else if (wordCount < 4) {
+      score -= 0.10;
+    }
+
+    if ((language == 'urdu' || language == 'punjabi') && !hasArabicScript) {
+      score -= 0.22;
+    }
+
+    score -= _calculateRulePenalty(violations) * 0.65;
+    return score.clamp(0.20, 0.98);
   }
 
   /// Generate detailed feedback based on scores
